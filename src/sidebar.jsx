@@ -106,13 +106,13 @@ export default function Sidebar() {
           {/* ORDER NOW */}
 
           <Link
-            to="/products"
-            className="sidebar-btn"
-            onClick={() => setIsOpen(false)}
-          >
-            <span>🛒</span>
-            <span>Order Now</span>
-          </Link>
+          to="/orders"
+          className="sidebar-btn"
+          onClick={() => setIsOpen(false)}
+        >
+          <span>🛒</span>
+          <span>Orders</span>
+        </Link>
 
 
           {/* ABOUT AJA BAKES */}

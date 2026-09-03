@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Sidebar from "./sidebar";
 
-
 /* =========================================
    CINNAMON ROLLS
    ========================================= */
@@ -39,7 +38,6 @@ const cinnamonRolls = [
   },
 ];
 
-
 /* =========================================
    GARLIC CHEESE BUN
    ========================================= */
@@ -51,7 +49,6 @@ const garlicBuns = [
     image: "/products/garlicbun.png",
   },
 ];
-
 
 /* =========================================
    WAFFLES
@@ -80,68 +77,92 @@ const waffles = [
   },
 ];
 
-
 /* =========================================
    PRODUCT CARD
    ========================================= */
 
 function ProductCard({ product }) {
+  const handleOrder = () => {
+    const savedOrders =
+      JSON.parse(localStorage.getItem("ajaCustomerOrders")) || [];
+
+    const existingProduct = savedOrders.find(
+      (item) => item.name === product.name
+    );
+
+    let updatedOrders;
+
+    if (existingProduct) {
+      updatedOrders = savedOrders.map((item) =>
+        item.name === product.name
+          ? {
+              ...item,
+              quantity: item.quantity + 1,
+            }
+          : item
+      );
+    } else {
+      updatedOrders = [
+        ...savedOrders,
+        {
+          id: Date.now(),
+          name: product.name,
+          price: product.price,
+          image: product.image,
+          quantity: 1,
+        },
+      ];
+    }
+
+    localStorage.setItem(
+      "ajaCustomerOrders",
+      JSON.stringify(updatedOrders)
+    );
+
+    alert(`${product.name} added to your orders!`);
+  };
+
   return (
     <div className="product-card">
-
       <div className="product-image-container">
-
         <img
           src={product.image}
           alt={product.name}
           className="product-image"
         />
-
       </div>
-
 
       <div className="product-info">
+        <h3>{product.name}</h3>
 
-        <h3>
-          {product.name}
-        </h3>
+        <p className="product-price">{product.price}</p>
 
-        <p className="product-price">
-          {product.price}
-        </p>
-
-        <button className="order-btn">
+        <button
+          className="order-btn"
+          onClick={handleOrder}
+        >
           ORDER NOW
         </button>
-
       </div>
-
     </div>
   );
 }
-
 
 /* =========================================
    PRODUCTS PAGE
    ========================================= */
 
 export default function Products() {
-
-  const [activeCategory, setActiveCategory] = useState("cinnamon");
-
+  const [activeCategory, setActiveCategory] =
+    useState("cinnamon");
 
   return (
     <div className="aja-page">
 
-      {/* SIDEBAR */}
       <Sidebar />
 
-
-      {/* NAVBAR */}
       <header className="navbar">
-
         <div className="nav-left">
-
           <img
             src="/logo.png"
             alt="AJA Bakes Logo"
@@ -151,37 +172,25 @@ export default function Products() {
           <span className="nav-title">
             AJA BAKES
           </span>
-
         </div>
-
       </header>
 
-
-      {/* PRODUCTS PAGE */}
       <main className="products-page">
 
-
-        {/* PAGE HEADER */}
         <section className="products-header">
-
           <img
             src="/logo.png"
             alt="AJA Bakes"
             className="products-logo"
           />
 
-          <h1>
-            OUR PRODUCTS
-          </h1>
+          <h1>OUR PRODUCTS</h1>
 
           <p>
             Freshly baked favorites made with love. 🤎
           </p>
-
         </section>
 
-
-        {/* CATEGORY TABS */}
         <div className="product-tabs">
 
           <button
@@ -190,11 +199,12 @@ export default function Products() {
                 ? "product-tab active"
                 : "product-tab"
             }
-            onClick={() => setActiveCategory("cinnamon")}
+            onClick={() =>
+              setActiveCategory("cinnamon")
+            }
           >
             CINNAMON
           </button>
-
 
           <button
             className={
@@ -202,11 +212,12 @@ export default function Products() {
                 ? "product-tab active"
                 : "product-tab"
             }
-            onClick={() => setActiveCategory("garlic")}
+            onClick={() =>
+              setActiveCategory("garlic")
+            }
           >
             GARLIC CHEESE BUN
           </button>
-
 
           <button
             className={
@@ -214,147 +225,84 @@ export default function Products() {
                 ? "product-tab active"
                 : "product-tab"
             }
-            onClick={() => setActiveCategory("waffles")}
+            onClick={() =>
+              setActiveCategory("waffles")
+            }
           >
             WAFFLES
           </button>
 
         </div>
 
-
-        {/* =========================
-            CINNAMON
-            ========================= */}
-
         {activeCategory === "cinnamon" && (
-
           <section className="product-category">
 
             <div className="category-title">
-
               <span>❧</span>
-
-              <h2>
-                CINNAMON ROLLS
-              </h2>
-
+              <h2>CINNAMON ROLLS</h2>
               <span>❧</span>
-
             </div>
 
-
             <div className="product-grid">
-
               {cinnamonRolls.map((product) => (
-
                 <ProductCard
                   key={product.name}
                   product={product}
                 />
-
               ))}
-
             </div>
 
           </section>
-
         )}
-
-
-        {/* =========================
-            GARLIC CHEESE BUN
-            ========================= */}
 
         {activeCategory === "garlic" && (
-
           <section className="product-category">
 
             <div className="category-title">
-
               <span>❧</span>
-
-              <h2>
-                GARLIC CHEESE BUN
-              </h2>
-
+              <h2>GARLIC CHEESE BUN</h2>
               <span>❧</span>
-
             </div>
 
-
             <div className="product-grid">
-
               {garlicBuns.map((product) => (
-
                 <ProductCard
                   key={product.name}
                   product={product}
                 />
-
               ))}
-
             </div>
 
           </section>
-
         )}
-
-
-        {/* =========================
-            WAFFLES
-            ========================= */}
 
         {activeCategory === "waffles" && (
-
           <section className="product-category">
 
             <div className="category-title">
-
               <span>❧</span>
-
-              <h2>
-                WAFFLES
-              </h2>
-
+              <h2>WAFFLES</h2>
               <span>❧</span>
-
             </div>
 
-
             <div className="product-grid">
-
               {waffles.map((product) => (
-
                 <ProductCard
                   key={product.name}
                   product={product}
                 />
-
               ))}
-
             </div>
 
           </section>
-
         )}
-
-
-        {/* =========================
-            COMING SOON
-            ========================= */}
 
         <section className="coming-soon-section">
 
           <div className="category-title">
-
             <span>❧</span>
-
-            <h2>
-              COMING SOON
-            </h2>
-
+            <h2>COMING SOON</h2>
             <span>❧</span>
-
           </div>
 
           <p>
@@ -363,16 +311,10 @@ export default function Products() {
 
         </section>
 
-
       </main>
 
-
-      {/* FOOTER */}
       <footer>
-
-        <h3>
-          AJA BAKES
-        </h3>
+        <h3>AJA BAKES</h3>
 
         <p>
           Freshly Baked. Made with Love. 🤎
@@ -381,7 +323,6 @@ export default function Products() {
         <p className="copyright">
           © 2026 AJA Bakes
         </p>
-
       </footer>
 
     </div>
