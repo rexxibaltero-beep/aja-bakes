@@ -2786,3 +2786,65 @@
     margin-left: 0;
   }
 }
+/* =========================================
+   MOBILE SIDEBAR - FIX LOGOUT
+========================================= */
+
+@media (max-width: 768px) {
+
+  .admin-sidebar {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    display: flex;
+    flex-direction: column;
+
+    padding-bottom: 20px;
+
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-sidebar .admin-logo {
+    flex-shrink: 0;
+  }
+
+  .admin-sidebar .admin-nav {
+    flex-shrink: 0;
+  }
+
+  .admin-sidebar .sidebar-bottom {
+    margin-top: auto;
+    flex-shrink: 0;
+    padding-bottom: 10px;
+  }
+
+  .admin-sidebar .admin-user {
+    min-width: 0;
+  }
+
+  .admin-sidebar .admin-user > div:last-child {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .admin-sidebar .admin-user small {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+
+  .admin-sidebar .logout-btn {
+    width: 100%;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  /* Prevent close button from affecting layout */
+  .admin-sidebar-close {
+    flex-shrink: 0;
+  }
+}
