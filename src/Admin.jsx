@@ -1,50 +1,53 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
   getDocs,
-  orderBy,
   query,
+  orderBy,
   updateDoc,
   doc,
 } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+
 import { auth, db } from "./firebase";
 import "./Admin.css";
 
 export default function Admin() {
   const navigate = useNavigate();
 
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [activeSection, setActiveSection] = useState("dashboard");
-
   const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [activeSection, setActiveSection] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [expenses, setExpenses] = useState(() => {
-    return Number(localStorage.getItem("ajaBakesExpenses")) || 0;
+    return Number(localStorage.getItem("ajaBakesExpenses") || 0);
   });
 
   const [expenseInput, setExpenseInput] = useState("");
 
-  const statusOptions = [
-    "Pending",
-    "Preparing",
-    "Ready",
-    "Completed",
-    "Cancelled",
-  ];
+  const [dateFilter, setDateFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+
+  const [updatingOrder, setUpdatingOrder] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
 
   /* =========================================
-     AUTHENTICATION
+     AUTH
   ========================================= */
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
-        navigate("/admin", { replace: true });
+        navigate("/admin");
       } else {
-        setCheckingAuth(false);
+        loadOrders();
       }
     });
 
@@ -52,12 +55,40 @@ export default function Admin() {
   }, [navigate]);
 
   /* =========================================
-     FETCH ORDERS
+     MOBILE SIDEBAR
   ========================================= */
 
-  const fetchOrders = async () => {
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setSidebarOpen(false);
+        setDateDropdownOpen(false);
+        setStatusDropdownOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  /* =========================================
+     LOAD ORDERS
+  ========================================= */
+
+  const loadOrders = async () => {
     try {
-      setLoadingOrders(true);
+      setLoading(true);
 
       const ordersQuery = query(
         collection(db, "orders"),
@@ -66,115 +97,94 @@ export default function Admin() {
 
       const snapshot = await getDocs(ordersQuery);
 
-      const orderList = snapshot.docs.map((item) => ({
+      const orderData = snapshot.docs.map((item) => ({
         id: item.id,
         ...item.data(),
       }));
 
-      setOrders(orderList);
+      setOrders(orderData);
     } catch (error) {
-      console.error("Error fetching orders:", error);
-      alert("Unable to load orders.");
+      console.error("Error loading orders:", error);
+
+      try {
+        const snapshot = await getDocs(collection(db, "orders"));
+
+        const orderData = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
+
+        setOrders(orderData);
+      } catch (fallbackError) {
+        console.error("Fallback error:", fallbackError);
+      }
     } finally {
-      setLoadingOrders(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!checkingAuth) {
-      fetchOrders();
-    }
-  }, [checkingAuth]);
-
-  /* =========================================
-     UPDATE STATUS
-  ========================================= */
-
-  const updateStatus = async (orderId, newStatus) => {
-    try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status: newStatus,
-      });
-
-      setOrders((currentOrders) =>
-        currentOrders.map((order) =>
-          order.id === orderId
-            ? {
-                ...order,
-                status: newStatus,
-              }
-            : order
-        )
-      );
-    } catch (error) {
-      console.error("Error updating status:", error);
-      alert("Unable to update order status.");
+      setLoading(false);
     }
   };
 
   /* =========================================
-     LOGOUT
+     STATUS PRIORITY
   ========================================= */
 
-  const handleLogout = async () => {
-    try {
-      await auth.signOut();
-
-      navigate("/admin", {
-        replace: true,
-      });
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
+  const statusPriority = {
+    Pending: 1,
+    Processing: 2,
+    Completed: 3,
+    Cancelled: 4,
   };
 
   /* =========================================
-     DATE
+     SORT ORDERS
   ========================================= */
 
-  const formatDate = (date) => {
-    if (!date) return "N/A";
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => {
+      const statusA = statusPriority[a.status] || 99;
+      const statusB = statusPriority[b.status] || 99;
 
-    try {
-      return new Date(date).toLocaleDateString("en-PH", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch {
-      return "N/A";
-    }
-  };
+      if (statusA !== statusB) {
+        return statusA - statusB;
+      }
+
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+
+      return dateB - dateA;
+    });
+  }, [orders]);
 
   /* =========================================
-     PRICE
+     VALID ORDERS
   ========================================= */
 
-  const getPriceNumber = (price) => {
-    return Number(
-      String(price || "")
-        .replace("₱", "")
-        .replace(",", "")
+  const validOrders = useMemo(() => {
+    return orders.filter(
+      (order) => order.status !== "Cancelled"
     );
-  };
+  }, [orders]);
+
+  const completedOrders = useMemo(() => {
+    return orders.filter(
+      (order) => order.status === "Completed"
+    );
+  }, [orders]);
+
+  const pendingOrders = useMemo(() => {
+    return orders.filter(
+      (order) => order.status === "Pending"
+    );
+  }, [orders]);
+
+  const processingOrders = useMemo(() => {
+    return orders.filter(
+      (order) => order.status === "Processing"
+    );
+  }, [orders]);
 
   /* =========================================
-     BUSINESS STATISTICS
+     SALES
   ========================================= */
-
-  const validOrders = orders.filter(
-    (order) => order.status !== "Cancelled"
-  );
-
-  const completedOrders = orders.filter(
-    (order) => order.status === "Completed"
-  );
-
-  const totalOrders = orders.length;
-
-  const pendingOrders = orders.filter(
-    (order) => order.status === "Pending"
-  ).length;
 
   const totalSales = validOrders.reduce(
     (sum, order) => sum + Number(order.total || 0),
@@ -192,6 +202,23 @@ export default function Admin() {
     totalSales > 0
       ? ((netProfit / totalSales) * 100).toFixed(1)
       : "0.0";
+
+  /* =========================================
+     PRODUCTS SOLD
+  ========================================= */
+
+  const productsSold = validOrders.reduce((sum, order) => {
+    if (!order.products) return sum;
+
+    return (
+      sum +
+      order.products.reduce(
+        (productSum, product) =>
+          productSum + Number(product.quantity || 0),
+        0
+      )
+    );
+  }, 0);
 
   /* =========================================
      MONTHLY SALES
@@ -212,6 +239,7 @@ export default function Admin() {
     "Dec",
   ];
 
+  const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
 
   const monthlySales = monthNames.map((month, index) => {
@@ -223,7 +251,7 @@ export default function Admin() {
 
         return (
           date.getMonth() === index &&
-          date.getFullYear() === new Date().getFullYear()
+          date.getFullYear() === currentYear
         );
       })
       .reduce(
@@ -242,7 +270,7 @@ export default function Admin() {
     currentMonth + 1
   );
 
-  const maxSales = Math.max(
+  const maxMonthlySales = Math.max(
     ...visibleMonthlySales.map((item) => item.sales),
     1
   );
@@ -259,7 +287,7 @@ export default function Admin() {
 
       return (
         date.getMonth() === index &&
-        date.getFullYear() === new Date().getFullYear()
+        date.getFullYear() === currentYear
       );
     }).length;
 
@@ -274,7 +302,7 @@ export default function Admin() {
     currentMonth + 1
   );
 
-  const maxOrders = Math.max(
+  const maxMonthlyOrders = Math.max(
     ...visibleMonthlyOrders.map((item) => item.count),
     1
   );
@@ -297,8 +325,9 @@ export default function Admin() {
         };
       }
 
-      productSales[product.name].quantity +=
-        Number(product.quantity || 0);
+      productSales[product.name].quantity += Number(
+        product.quantity || 0
+      );
     });
   });
 
@@ -306,7 +335,7 @@ export default function Admin() {
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 5);
 
-  const maxProductQuantity = Math.max(
+  const highestProductQuantity = Math.max(
     ...bestSellingProducts.map(
       (product) => product.quantity
     ),
@@ -314,7 +343,51 @@ export default function Admin() {
   );
 
   /* =========================================
-     SAVE EXPENSE
+     UPDATE STATUS
+  ========================================= */
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      setUpdatingOrder(orderId);
+
+      const orderRef = doc(db, "orders", orderId);
+
+      const updateData = {
+        status: newStatus,
+      };
+
+      if (newStatus === "Completed") {
+        const currentUser = auth.currentUser;
+
+        updateData.completedBy =
+          currentUser?.email || "Staff";
+
+        updateData.completedAt =
+          new Date().toISOString();
+      }
+
+      await updateDoc(orderRef, updateData);
+
+      setOrders((currentOrders) =>
+        currentOrders.map((order) =>
+          order.id === orderId
+            ? {
+                ...order,
+                ...updateData,
+              }
+            : order
+        )
+      );
+    } catch (error) {
+      console.error("Error updating order:", error);
+      alert("Unable to update order status.");
+    } finally {
+      setUpdatingOrder(null);
+    }
+  };
+
+  /* =========================================
+     EXPENSES
   ========================================= */
 
   const saveExpenses = () => {
@@ -336,31 +409,467 @@ export default function Admin() {
   };
 
   /* =========================================
-     AUTH LOADING
+     LOGOUT
   ========================================= */
 
-  if (checkingAuth) {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/admin");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  /* =========================================
+     NAVIGATION
+  ========================================= */
+
+  const goToSection = (section) => {
+    setActiveSection(section);
+    setSidebarOpen(false);
+
+    setDateDropdownOpen(false);
+    setStatusDropdownOpen(false);
+  };
+
+  /* =========================================
+     DATE FORMAT
+  ========================================= */
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "No date";
+
+    const date = new Date(dateValue);
+
+    if (isNaN(date.getTime())) {
+      return "No date";
+    }
+
+    return date.toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const formatTime = (dateValue) => {
+    if (!dateValue) return "";
+
+    const date = new Date(dateValue);
+
+    if (isNaN(date.getTime())) {
+      return "";
+    }
+
+    return date.toLocaleTimeString("en-PH", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const formatMoney = (amount) => {
+    return `₱${Number(amount || 0).toLocaleString(
+      "en-PH",
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }
+    )}`;
+  };
+
+  /* =========================================
+     AVAILABLE DATES
+  ========================================= */
+
+  const availableDates = [
+    ...new Set(
+      orders
+        .filter((order) => order.createdAt)
+        .map((order) => {
+          const date = new Date(order.createdAt);
+
+          return date.toISOString().split("T")[0];
+        })
+    ),
+  ].sort((a, b) => new Date(b) - new Date(a));
+
+  /* =========================================
+     DATE FILTERED ORDERS
+  ========================================= */
+
+  const filteredDateOrders = sortedOrders.filter((order) => {
+    const search = searchTerm.toLowerCase().trim();
+
+    const matchesSearch =
+      !search ||
+      (order.customerName || "")
+        .toLowerCase()
+        .includes(search) ||
+      (order.contactNumber || "")
+        .toLowerCase()
+        .includes(search) ||
+      (order.id || "")
+        .toLowerCase()
+        .includes(search) ||
+      (order.orderMethod || "")
+        .toLowerCase()
+        .includes(search) ||
+      (order.products || []).some((product) =>
+        (product.name || "")
+          .toLowerCase()
+          .includes(search)
+      );
+
+    const matchesDate =
+      dateFilter === "all" ||
+      (order.createdAt &&
+        new Date(order.createdAt)
+          .toISOString()
+          .split("T")[0] === dateFilter);
+
+    const matchesStatus =
+      statusFilter === "all" ||
+      order.status === statusFilter;
+
+    return (
+      matchesSearch &&
+      matchesDate &&
+      matchesStatus
+    );
+  });
+
+  /* =========================================
+     DATE DROPDOWN LABEL
+  ========================================= */
+
+  const selectedDateLabel =
+    dateFilter === "all"
+      ? "All Dates"
+      : new Date(
+          dateFilter + "T00:00:00"
+        ).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+
+  const selectedStatusLabel =
+    statusFilter === "all"
+      ? "All Status"
+      : statusFilter;
+
+  /* =========================================
+     ORDER TABLE COMPONENT
+  ========================================= */
+
+  const OrderTable = ({
+    title,
+    subtitle,
+    data,
+    type,
+  }) => {
+    return (
+      <section className="orders-table-card">
+        <div className="orders-table-header">
+          <div>
+            <span className="section-eyebrow">
+              ORDER MANAGEMENT
+            </span>
+
+            <h2>{title}</h2>
+
+            <p>{subtitle}</p>
+          </div>
+
+          <span className={`table-count ${type}`}>
+            {data.length}
+          </span>
+        </div>
+
+        {data.length === 0 ? (
+          <div className="table-empty">
+            <div className="empty-bread">🥐</div>
+
+            <h3>
+              No {title.toLowerCase()}
+            </h3>
+
+            <p>
+              Orders will appear here automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="orders-table-wrapper">
+            <table className="orders-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Customer</th>
+                  <th>Method</th>
+                  <th>Date</th>
+                  <th>Total</th>
+
+                  {type === "completed" && (
+                    <th>Handled By</th>
+                  )}
+
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {data.map((order) => (
+                  <tr key={order.id}>
+                    <td>
+                      <strong>
+                        #
+                        {order.id
+                          .slice(-6)
+                          .toUpperCase()}
+                      </strong>
+                    </td>
+
+                    <td>
+                      <div className="customer-cell">
+                        <div className="customer-avatar">
+                          {(
+                            order.customerName ||
+                            "C"
+                          )
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+
+                        <div>
+                          <strong>
+                            {order.customerName ||
+                              "Customer"}
+                          </strong>
+
+                          <small>
+                            {order.contactNumber ||
+                              "No contact"}
+                          </small>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span className="method-text">
+                        {order.orderMethod ||
+                          "Pickup"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="date-cell">
+                        <strong>
+                          {formatDate(
+                            order.createdAt
+                          )}
+                        </strong>
+
+                        <small>
+                          {formatTime(
+                            order.createdAt
+                          )}
+                        </small>
+                      </div>
+                    </td>
+
+                    <td>
+                      <strong className="price-text">
+                        {formatMoney(
+                          order.total
+                        )}
+                      </strong>
+                    </td>
+
+                    {type === "completed" && (
+                      <td>
+                        <div className="staff-cell">
+                          <span>👤</span>
+
+                          <small>
+                            {order.completedBy ||
+                              "Staff"}
+                          </small>
+                        </div>
+                      </td>
+                    )}
+
+                    <td>
+                      <span
+                        className={`status-pill ${(
+                          order.status ||
+                          "Pending"
+                        )
+                          .toLowerCase()
+                          .replace(
+                            /\s+/g,
+                            "-"
+                          )}`}
+                      >
+                        {order.status ||
+                          "Pending"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="table-actions">
+                        {order.status ===
+                          "Pending" && (
+                          <button
+                            className="action-btn processing-btn"
+                            disabled={
+                              updatingOrder ===
+                              order.id
+                            }
+                            onClick={() =>
+                              updateOrderStatus(
+                                order.id,
+                                "Processing"
+                              )
+                            }
+                          >
+                            {updatingOrder ===
+                            order.id
+                              ? "..."
+                              : "Process"}
+                          </button>
+                        )}
+
+                        {order.status ===
+                          "Processing" && (
+                          <button
+                            className="action-btn complete-btn"
+                            disabled={
+                              updatingOrder ===
+                              order.id
+                            }
+                            onClick={() =>
+                              updateOrderStatus(
+                                order.id,
+                                "Completed"
+                              )
+                            }
+                          >
+                            {updatingOrder ===
+                            order.id
+                              ? "..."
+                              : "Complete"}
+                          </button>
+                        )}
+
+                        {order.status ===
+                          "Completed" && (
+                          <span className="done-label">
+                            ✓ Done
+                          </span>
+                        )}
+
+                        {order.status !==
+                          "Cancelled" &&
+                          order.status !==
+                            "Completed" && (
+                            <button
+                              className="action-btn cancel-btn"
+                              disabled={
+                                updatingOrder ===
+                                order.id
+                              }
+                              onClick={() =>
+                                updateOrderStatus(
+                                  order.id,
+                                  "Cancelled"
+                                )
+                              }
+                            >
+                              Cancel
+                            </button>
+                          )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  /* =========================================
+     LOADING
+  ========================================= */
+
+  if (loading) {
     return (
       <div className="admin-loading">
-        <div className="loading-bread">🥖</div>
-        <p>Checking admin access...</p>
+        <div className="loading-bread">
+          🥐
+        </div>
+
+        <h2>Loading AJA Bakes...</h2>
+
+        <p>Preparing your dashboard</p>
       </div>
     );
   }
 
-  /* =========================================
-     ADMIN PANEL
-  ========================================= */
-
   return (
     <div className="admin-page">
 
-      {/* SIDEBAR */}
+      {/* =====================================
+          MOBILE OVERLAY
+      ===================================== */}
 
-      <aside className="admin-sidebar">
+      {sidebarOpen && (
+        <div
+          className="admin-sidebar-overlay"
+          onClick={() =>
+            setSidebarOpen(false)
+          }
+        />
+      )}
+
+      {/* =====================================
+          MOBILE MENU BUTTON
+      ===================================== */}
+
+      <button
+        className="admin-menu-toggle"
+        onClick={() =>
+          setSidebarOpen(true)
+        }
+        aria-label="Open admin menu"
+      >
+        ☰
+      </button>
+
+      {/* =====================================
+          SIDEBAR
+      ===================================== */}
+
+      <aside
+        className={`admin-sidebar ${
+          sidebarOpen ? "open" : ""
+        }`}
+      >
+        <button
+          className="admin-sidebar-close"
+          onClick={() =>
+            setSidebarOpen(false)
+          }
+          aria-label="Close menu"
+        >
+          ✕
+        </button>
 
         <div className="admin-logo">
-
           <img
             src="/logo.png"
             alt="AJA Bakes Logo"
@@ -368,8 +877,7 @@ export default function Admin() {
 
           <h2>AJA BAKES</h2>
 
-          <p>Bakery Management</p>
-
+          <span>ADMIN PANEL</span>
         </div>
 
         <nav className="admin-nav">
@@ -377,148 +885,138 @@ export default function Admin() {
           <button
             className={
               activeSection === "dashboard"
-                ? "admin-nav-btn active"
-                : "admin-nav-btn"
+                ? "active"
+                : ""
             }
             onClick={() =>
-              setActiveSection("dashboard")
+              goToSection("dashboard")
             }
           >
-            <span>▦</span>
+            <span>⌂</span>
             Dashboard
           </button>
 
           <button
             className={
               activeSection === "orders"
-                ? "admin-nav-btn active"
-                : "admin-nav-btn"
+                ? "active"
+                : ""
             }
             onClick={() =>
-              setActiveSection("orders")
+              goToSection("orders")
             }
           >
-            <span>🛒</span>
+            <span>🧾</span>
             Orders
+
+            {pendingOrders.length > 0 && (
+              <b className="nav-badge">
+                {pendingOrders.length}
+              </b>
+            )}
+          </button>
+
+          <button
+            className={
+              activeSection === "date-orders"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              goToSection("date-orders")
+            }
+          >
+            <span>📅</span>
+            Orders by Date
           </button>
 
           <button
             className={
               activeSection === "products"
-                ? "admin-nav-btn active"
-                : "admin-nav-btn"
+                ? "active"
+                : ""
             }
             onClick={() =>
-              setActiveSection("products")
+              goToSection("products")
             }
           >
-            <span>🥐</span>
+            <span>🍞</span>
             Products
-          </button>
-
-          <button
-            className={
-              activeSection === "messages"
-                ? "admin-nav-btn active"
-                : "admin-nav-btn"
-            }
-            onClick={() =>
-              setActiveSection("messages")
-            }
-          >
-            <span>💬</span>
-            Messages
           </button>
 
         </nav>
 
         <div className="sidebar-bottom">
 
-          <div className="sidebar-bread-decoration">
-            <span>🥖</span>
-            <span>🥐</span>
-            <span>🍞</span>
-          </div>
-
-          <button
-            className="admin-logout-btn"
-            onClick={handleLogout}
-          >
-            <span>↪</span>
-            Logout
-          </button>
-
-        </div>
-
-      </aside>
-
-
-      {/* MAIN */}
-
-      <main className="admin-content">
-
-        {/* HEADER */}
-
-        <header className="admin-header">
-
-          <div>
-
-            <div className="header-eyebrow">
-              AJA BAKES • BAKERY MANAGEMENT
-            </div>
-
-            <h1>
-              {activeSection === "dashboard" &&
-                "Good day, Baker!"}
-
-              {activeSection === "orders" &&
-                "Customer Orders"}
-
-              {activeSection === "products" &&
-                "Our Products"}
-
-              {activeSection === "messages" &&
-                "Customer Messages"}
-            </h1>
-
-            <p>
-              {activeSection === "dashboard" &&
-                "Here's how your bakery is doing today."}
-
-              {activeSection === "orders" &&
-                "Manage and monitor customer orders."}
-
-              {activeSection === "products" &&
-                "Manage your AJA Bakes products."}
-
-              {activeSection === "messages" &&
-                "View customer inquiries."}
-            </p>
-
-          </div>
-
-          <div className="admin-profile">
-
-            <div className="profile-avatar">
-              👩🏻‍🍳
+          <div className="admin-user">
+            <div className="admin-user-icon">
+              👤
             </div>
 
             <div>
-              <strong>Admin</strong>
-              <span>Bakery Manager</span>
-            </div>
+              <strong>Administrator</strong>
 
+              <small>
+                {auth.currentUser?.email ||
+                  "Admin"}
+              </small>
+            </div>
           </div>
 
-        </header>
+          <button
+            className="logout-btn"
+            onClick={handleLogout}
+          >
+            ↪ Logout
+          </button>
 
+        </div>
+      </aside>
 
-        {/* =====================================
+      {/* =====================================
+          MAIN
+      ===================================== */}
+
+      <main className="admin-main">
+
+        {/* ===================================
             DASHBOARD
-        ===================================== */}
+        =================================== */}
 
         {activeSection === "dashboard" && (
           <>
+
+            <header className="admin-header">
+              <div>
+
+                <span className="header-eyebrow">
+                  AJA BAKES • ADMIN
+                </span>
+
+                <h1>
+                  Good day, Admin! 👋
+                </h1>
+
+                <p>
+                  Here's what's happening
+                  with your bakery today.
+                </p>
+
+              </div>
+
+              <div className="header-date">
+                📅{" "}
+                {new Date().toLocaleDateString(
+                  "en-PH",
+                  {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  }
+                )}
+              </div>
+            </header>
 
             {/* HERO */}
 
@@ -527,18 +1025,19 @@ export default function Admin() {
               <div className="hero-content">
 
                 <span className="hero-small">
-                  FRESH FROM THE OVEN
+                  FRESHLY BAKED
                 </span>
 
                 <h2>
-                  Baking happiness,
+                  Made with love,
                   <br />
-                  one order at a time.
+                  baked for everyone.
                 </h2>
 
                 <p>
-                  Keep track of your sales,
-                  orders and bakery performance.
+                  Keep track of your orders,
+                  sales, and bakery performance
+                  all in one place.
                 </p>
 
               </div>
@@ -552,7 +1051,7 @@ export default function Admin() {
 
                 <img
                   src="/products/garlicbun.png"
-                  alt="Garlic Cheese Bun"
+                  alt="Garlic Bun"
                 />
 
                 <img
@@ -564,178 +1063,151 @@ export default function Admin() {
 
             </section>
 
+            {/* STATS */}
 
-            {/* STAT CARDS */}
+            <section className="stats-grid">
 
-            <section className="admin-stats">
+              <div className="stat-card">
 
-              <div className="admin-stat-card">
-
-                <div className="stat-icon">
-                  ₱
-                </div>
+                <span className="stat-icon">
+                  🧾
+                </span>
 
                 <div>
-                  <p>Total Revenue</p>
+                  <small>Total Orders</small>
 
-                  <h2>
-                    ₱{totalSales.toFixed(2)}
-                  </h2>
-
-                  <small>
-                    From active orders
-                  </small>
+                  <strong>
+                    {orders.length}
+                  </strong>
                 </div>
 
               </div>
 
+              <div className="stat-card pending-stat">
 
-              <div className="admin-stat-card">
-
-                <div className="stat-icon">
-                  🛒
-                </div>
-
-                <div>
-                  <p>Total Orders</p>
-
-                  <h2>
-                    {totalOrders}
-                  </h2>
-
-                  <small>
-                    {completedOrders.length} completed
-                  </small>
-                </div>
-
-              </div>
-
-
-              <div className="admin-stat-card">
-
-                <div className="stat-icon">
+                <span className="stat-icon">
                   ⏳
-                </div>
+                </span>
 
                 <div>
-                  <p>Pending</p>
+                  <small>Pending</small>
 
-                  <h2>
-                    {pendingOrders}
-                  </h2>
-
-                  <small>
-                    Orders waiting
-                  </small>
+                  <strong>
+                    {pendingOrders.length}
+                  </strong>
                 </div>
 
               </div>
 
+              <div className="stat-card">
 
-              <div className="admin-stat-card">
-
-                <div className="stat-icon">
-                  🥖
-                </div>
+                <span className="stat-icon">
+                  🍞
+                </span>
 
                 <div>
-                  <p>Products</p>
+                  <small>Products Sold</small>
 
-                  <h2>11</h2>
+                  <strong>
+                    {productsSold}
+                  </strong>
+                </div>
 
-                  <small>
-                    Available items
-                  </small>
+              </div>
+
+              <div className="stat-card">
+
+                <span className="stat-icon">
+                  💰
+                </span>
+
+                <div>
+                  <small>Total Sales</small>
+
+                  <strong>
+                    {formatMoney(totalSales)}
+                  </strong>
                 </div>
 
               </div>
 
             </section>
 
-
             {/* SALES + PROFIT */}
 
             <section className="dashboard-grid">
 
-              {/* SALES GRAPH */}
-
-              <div className="dashboard-card sales-card">
+              <div className="dashboard-card">
 
                 <div className="card-heading">
 
                   <div>
-                    <span>BUSINESS PERFORMANCE</span>
 
-                    <h2>Sales Overview</h2>
+                    <span className="section-eyebrow">
+                      OVERVIEW
+                    </span>
 
-                    <p>
-                      Revenue for the last 6 months
-                    </p>
+                    <h2>Monthly Sales</h2>
+
                   </div>
 
-                  <div className="mini-badge">
-                    📈 Sales
-                  </div>
+                  <span className="mini-badge">
+                    {currentYear}
+                  </span>
 
                 </div>
-
 
                 <div className="sales-chart">
 
                   {visibleMonthlySales.map(
-                    (item) => {
+                    (item) => (
 
-                      const height =
-                        item.sales === 0
-                          ? 4
-                          : Math.max(
-                              (item.sales /
-                                maxSales) *
-                                170,
-                              10
-                            );
+                      <div
+                        className="sales-bar-column"
+                        key={item.month}
+                      >
 
-                      return (
-                        <div
-                          className="sales-bar-column"
-                          key={item.month}
-                        >
+                        <span className="bar-value">
 
-                          <div className="bar-value">
-                            {item.sales > 0
-                              ? `₱${item.sales.toLocaleString()}`
-                              : ""}
-                          </div>
+                          {item.sales > 0
+                            ? `₱${(
+                                item.sales /
+                                1000
+                              ).toFixed(1)}k`
+                            : "₱0"}
 
-                          <div className="sales-bar-area">
+                        </span>
 
-                            <div
-                              className="sales-bar"
-                              style={{
-                                height: `${height}px`,
-                              }}
-                            />
+                        <div className="sales-bar-area">
 
-                          </div>
-
-                          <span>
-                            {item.month}
-                          </span>
+                          <div
+                            className="sales-bar"
+                            style={{
+                              height: `${
+                                (item.sales /
+                                  maxMonthlySales) *
+                                100
+                              }%`,
+                            }}
+                          />
 
                         </div>
-                      );
-                    }
+
+                        <small>
+                          {item.month}
+                        </small>
+
+                      </div>
+
+                    )
                   )}
 
                 </div>
 
               </div>
 
-
-              {/* PROFIT CARD */}
-
               <div
-                className={`profit-card ${
+                className={`dashboard-card profit-card ${
                   netProfit >= 0
                     ? "profit"
                     : "loss"
@@ -744,69 +1216,53 @@ export default function Admin() {
 
                 <div className="profit-top">
 
-                  <span>
-                    BUSINESS HEALTH
-                  </span>
+                  <div>
+
+                    <span className="section-eyebrow">
+                      PROFIT & LOSS
+                    </span>
+
+                    <h2>
+                      {netProfit >= 0
+                        ? "Net Profit"
+                        : "Net Loss"}
+                    </h2>
+
+                  </div>
 
                   <span className="profit-icon">
                     {netProfit >= 0
-                      ? "↗"
-                      : "↘"}
+                      ? "📈"
+                      : "📉"}
                   </span>
 
                 </div>
 
-
-                <div className="profit-bread">
-                  {netProfit >= 0
-                    ? "🥖"
-                    : "🥀"}
-                </div>
-
-
-                <h2>
-                  {netProfit >= 0
-                    ? "PROFITABLE"
-                    : "LOSS"}
-                </h2>
-
-
                 <div className="profit-number">
-                  {netProfit >= 0
-                    ? "+"
-                    : "-"}
-                  ₱
-                  {Math.abs(
-                    netProfit
-                  ).toFixed(2)}
+                  {formatMoney(netProfit)}
                 </div>
-
-
-                <p>
-                  {netProfit >= 0
-                    ? "Your current revenue is higher than your recorded expenses."
-                    : "Your recorded expenses are higher than your current revenue."}
-                </p>
-
 
                 <div className="profit-details">
 
                   <div>
-                    <span>Revenue</span>
+                    <span>Total Sales</span>
+
                     <strong>
-                      ₱{totalSales.toFixed(2)}
+                      {formatMoney(totalSales)}
                     </strong>
                   </div>
 
                   <div>
                     <span>Expenses</span>
+
                     <strong>
-                      ₱{expenses.toFixed(2)}
+                      {formatMoney(expenses)}
                     </strong>
                   </div>
 
                   <div>
                     <span>Margin</span>
+
                     <strong>
                       {profitMargin}%
                     </strong>
@@ -814,118 +1270,97 @@ export default function Admin() {
 
                 </div>
 
+                <div className="profit-bread">
+                  🥖
+                </div>
+
               </div>
 
             </section>
 
-
-            {/* ORDERS GRAPH + TOP PRODUCTS */}
+            {/* ORDER CHART + BEST SELLERS */}
 
             <section className="dashboard-grid">
-
-              {/* ORDER GRAPH */}
 
               <div className="dashboard-card">
 
                 <div className="card-heading">
 
                   <div>
-                    <span>ORDER ACTIVITY</span>
 
-                    <h2>Orders Overview</h2>
+                    <span className="section-eyebrow">
+                      ORDERS
+                    </span>
 
-                    <p>
-                      Number of orders per month
-                    </p>
+                    <h2>Monthly Orders</h2>
+
                   </div>
 
                 </div>
 
-
                 <div className="order-chart">
 
                   {visibleMonthlyOrders.map(
-                    (item) => {
+                    (item) => (
 
-                      const height =
-                        item.count === 0
-                          ? 4
-                          : Math.max(
-                              (item.count /
-                                maxOrders) *
-                                145,
-                              10
-                            );
+                      <div
+                        className="order-bar-column"
+                        key={item.month}
+                      >
 
-                      return (
-                        <div
-                          className="order-bar-column"
-                          key={item.month}
-                        >
+                        <span className="order-bar-value">
+                          {item.count}
+                        </span>
 
-                          <div className="order-bar-value">
-                            {item.count}
-                          </div>
+                        <div className="order-bar-area">
 
-                          <div className="order-bar-area">
-
-                            <div
-                              className="order-bar"
-                              style={{
-                                height: `${height}px`,
-                              }}
-                            />
-
-                          </div>
-
-                          <span>
-                            {item.month}
-                          </span>
+                          <div
+                            className="order-bar"
+                            style={{
+                              height: `${
+                                (item.count /
+                                  maxMonthlyOrders) *
+                                100
+                              }%`,
+                            }}
+                          />
 
                         </div>
-                      );
-                    }
+
+                        <small>
+                          {item.month}
+                        </small>
+
+                      </div>
+
+                    )
                   )}
 
                 </div>
 
               </div>
 
-
-              {/* BEST SELLERS */}
-
               <div className="dashboard-card">
 
                 <div className="card-heading">
 
                   <div>
-                    <span>BAKERY FAVORITES</span>
+
+                    <span className="section-eyebrow">
+                      TOP PRODUCTS
+                    </span>
 
                     <h2>Best Sellers</h2>
 
-                    <p>
-                      Most ordered products
-                    </p>
                   </div>
-
-                  <span className="bread-label">
-                    🥐
-                  </span>
 
                 </div>
 
-
-                {bestSellingProducts.length === 0 ? (
+                {bestSellingProducts.length ===
+                0 ? (
 
                   <div className="small-empty">
-
-                    <span>🥖</span>
-
-                    <p>
-                      Your best sellers
-                      will appear here.
-                    </p>
-
+                    No product sales yet.
                   </div>
 
                 ) : (
@@ -933,56 +1368,58 @@ export default function Admin() {
                   <div className="best-sellers">
 
                     {bestSellingProducts.map(
-                      (product, index) => {
+                      (product, index) => (
 
-                        const percentage =
-                          (product.quantity /
-                            maxProductQuantity) *
-                          100;
+                        <div
+                          className="best-product"
+                          key={product.name}
+                        >
 
-                        return (
-                          <div
-                            className="best-product"
-                            key={product.name}
-                          >
+                          <span className="product-rank">
+                            #{index + 1}
+                          </span>
 
-                            <div className="product-rank">
-                              {index + 1}
+                          <img
+                            src={
+                              product.image ||
+                              "/logo.png"
+                            }
+                            alt={product.name}
+                          />
+
+                          <div className="best-product-info">
+
+                            <div className="best-product-name">
+
+                              <strong>
+                                {product.name}
+                              </strong>
+
+                              <span>
+                                {product.quantity} sold
+                              </span>
+
                             </div>
 
-                            <img
-                              src={
-                                product.image ||
-                                "/logo.png"
-                              }
-                              alt={product.name}
-                            />
+                            <div className="product-progress">
 
-                            <div className="best-product-info">
-
-                              <div className="best-product-name">
-                                <strong>
-                                  {product.name}
-                                </strong>
-
-                                <span>
-                                  {product.quantity} sold
-                                </span>
-                              </div>
-
-                              <div className="product-progress">
-                                <div
-                                  style={{
-                                    width: `${percentage}%`,
-                                  }}
-                                />
-                              </div>
+                              <span
+                                style={{
+                                  width: `${
+                                    (product.quantity /
+                                      highestProductQuantity) *
+                                    100
+                                  }%`,
+                                }}
+                              />
 
                             </div>
 
                           </div>
-                        );
-                      }
+
+                        </div>
+
+                      )
                     )}
 
                   </div>
@@ -993,44 +1430,39 @@ export default function Admin() {
 
             </section>
 
-
-            {/* EXPENSE MANAGEMENT */}
+            {/* EXPENSE */}
 
             <section className="expense-section">
 
               <div className="expense-info">
 
-                <span>
-                  💸 FINANCIAL MANAGEMENT
+                <span className="section-eyebrow">
+                  EXPENSE TRACKER
                 </span>
 
-                <h2>
-                  Track Your Expenses
-                </h2>
+                <h2>Manage Expenses</h2>
 
                 <p>
-                  Enter your current total expenses
-                  for ingredients, packaging,
-                  utilities, and other bakery costs.
+                  Update the total expenses used
+                  for the profit calculation.
                 </p>
 
                 <div className="expense-current">
 
-                  <span>Recorded expenses</span>
+                  Current expenses:
 
                   <strong>
-                    ₱{expenses.toFixed(2)}
+                    {formatMoney(expenses)}
                   </strong>
 
                 </div>
 
               </div>
 
-
               <div className="expense-form">
 
                 <label>
-                  Update total expenses
+                  New total expenses
                 </label>
 
                 <div className="expense-input-row">
@@ -1040,7 +1472,7 @@ export default function Admin() {
                   <input
                     type="number"
                     min="0"
-                    placeholder="Enter amount"
+                    placeholder="0.00"
                     value={expenseInput}
                     onChange={(e) =>
                       setExpenseInput(
@@ -1052,46 +1484,37 @@ export default function Admin() {
                   <button
                     onClick={saveExpenses}
                   >
-                    SAVE
+                    Save
                   </button>
 
                 </div>
-
-                <small>
-                  Profit = Revenue − Expenses
-                </small>
 
               </div>
 
             </section>
 
+            {/* QUICK ORDER STATUS */}
 
-            {/* RECENT ORDERS */}
+            <section className="quick-orders">
 
-            <section className="admin-section">
-
-              <div className="section-header">
+              <div className="section-title-row">
 
                 <div>
 
                   <span className="section-eyebrow">
-                    CUSTOMER ACTIVITY
+                    ORDER MANAGEMENT
                   </span>
 
                   <h2>
-                    Recent Orders
+                    Orders Needing Attention
                   </h2>
-
-                  <p>
-                    Latest customer orders.
-                  </p>
 
                 </div>
 
                 <button
-                  className="admin-action-btn"
+                  className="view-all-btn"
                   onClick={() =>
-                    setActiveSection("orders")
+                    goToSection("orders")
                   }
                 >
                   View All →
@@ -1099,88 +1522,675 @@ export default function Admin() {
 
               </div>
 
+              <div className="quick-order-grid">
 
-              {orders.length === 0 ? (
+                {sortedOrders
+                  .filter(
+                    (order) =>
+                      order.status ===
+                        "Pending" ||
+                      order.status ===
+                        "Processing"
+                  )
+                  .slice(0, 6)
+                  .map((order) => (
 
-                <div className="empty-state">
+                    <div
+                      className="quick-order-card"
+                      key={order.id}
+                    >
 
-                  <div className="empty-icon">
-                    🥖
+                      <div className="recent-customer">
+
+                        <div className="customer-icon">
+
+                          {(
+                            order.customerName ||
+                            "C"
+                          )
+                            .charAt(0)
+                            .toUpperCase()}
+
+                        </div>
+
+                        <div>
+
+                          <strong>
+                            {order.customerName ||
+                              "Customer"}
+                          </strong>
+
+                          <small>
+                            #
+                            {order.id
+                              .slice(-6)
+                              .toUpperCase()}
+                          </small>
+
+                        </div>
+
+                      </div>
+
+                      <span
+                        className={`status-pill ${order.status.toLowerCase()}`}
+                      >
+                        {order.status}
+                      </span>
+
+                      <strong className="recent-total">
+                        {formatMoney(order.total)}
+                      </strong>
+
+                    </div>
+
+                  ))}
+
+                {sortedOrders.filter(
+                  (order) =>
+                    order.status ===
+                      "Pending" ||
+                    order.status ===
+                      "Processing"
+                ).length === 0 && (
+
+                  <div className="no-attention">
+                    🎉 No orders need
+                    attention right now!
+                  </div>
+
+                )}
+
+              </div>
+
+            </section>
+
+          </>
+        )}
+
+        {/* ===================================
+            ORDERS
+        =================================== */}
+
+        {activeSection === "orders" && (
+          <>
+
+            <header className="admin-header">
+
+              <div>
+
+                <span className="header-eyebrow">
+                  ORDER MANAGEMENT
+                </span>
+
+                <h1>Orders</h1>
+
+                <p>
+                  Manage pending, processing,
+                  and completed bakery orders.
+                </p>
+
+              </div>
+
+              <button
+                className="refresh-btn"
+                onClick={loadOrders}
+              >
+                ↻ Refresh
+              </button>
+
+            </header>
+
+            <div className="order-summary-strip">
+
+              <div>
+                <span>Pending</span>
+
+                <strong>
+                  {pendingOrders.length}
+                </strong>
+              </div>
+
+              <div>
+                <span>Processing</span>
+
+                <strong>
+                  {processingOrders.length}
+                </strong>
+              </div>
+
+              <div>
+                <span>Completed</span>
+
+                <strong>
+                  {completedOrders.length}
+                </strong>
+              </div>
+
+              <div>
+                <span>Total</span>
+
+                <strong>
+                  {orders.length}
+                </strong>
+              </div>
+
+            </div>
+
+            <OrderTable
+              title="Pending Orders"
+              subtitle="Orders waiting to be processed."
+              data={pendingOrders}
+              type="pending"
+            />
+
+            <OrderTable
+              title="Processing Orders"
+              subtitle="Orders currently being prepared."
+              data={processingOrders}
+              type="processing"
+            />
+
+            <OrderTable
+              title="Completed / Staff"
+              subtitle="Completed orders and the staff member who handled them."
+              data={completedOrders}
+              type="completed"
+            />
+
+            <OrderTable
+              title="Cancelled Orders"
+              subtitle="Orders that have been cancelled."
+              data={orders.filter(
+                (order) =>
+                  order.status === "Cancelled"
+              )}
+              type="cancelled"
+            />
+
+          </>
+        )}
+
+        {/* ===================================
+            ORDERS BY DATE
+        =================================== */}
+
+        {activeSection === "date-orders" && (
+          <>
+
+            <header className="admin-header">
+
+              <div>
+
+                <span className="header-eyebrow">
+                  ORDER HISTORY
+                </span>
+
+                <h1>Orders by Date</h1>
+
+                <p>
+                  View your orders according to
+                  their order date.
+                </p>
+
+              </div>
+
+            </header>
+
+            {/* DATE FILTER */}
+
+            <section className="date-filter-card">
+
+              {/* SEARCH */}
+
+              <div className="search-box">
+
+                <span>🔍</span>
+
+                <input
+                  type="text"
+                  placeholder="Search customer, order ID, product..."
+                  value={searchTerm}
+                  onChange={(e) =>
+                    setSearchTerm(
+                      e.target.value
+                    )
+                  }
+                />
+
+                {searchTerm && (
+                  <button
+                    type="button"
+                    className="clear-search"
+                    onClick={() =>
+                      setSearchTerm("")
+                    }
+                  >
+                    ✕
+                  </button>
+                )}
+
+              </div>
+
+              {/* DATE DROPDOWN */}
+
+              <div className="date-filter-group">
+
+                <label>
+                  Select Date
+                </label>
+
+                <div className="custom-date-dropdown">
+
+                  <button
+                    type="button"
+                    className="custom-date-select"
+                    onClick={() => {
+                      setDateDropdownOpen(
+                        (prev) => !prev
+                      );
+
+                      setStatusDropdownOpen(
+                        false
+                      );
+                    }}
+                  >
+
+                    <span>
+                      {selectedDateLabel}
+                    </span>
+
+                    <span className="dropdown-arrow">
+                      {dateDropdownOpen
+                        ? "⌃"
+                        : "⌄"}
+                    </span>
+
+                  </button>
+
+                  {dateDropdownOpen && (
+
+                    <div className="custom-date-options">
+
+                      <button
+                        type="button"
+                        className={
+                          dateFilter === "all"
+                            ? "selected"
+                            : ""
+                        }
+                        onClick={() => {
+                          setDateFilter("all");
+                          setDateDropdownOpen(
+                            false
+                          );
+                        }}
+                      >
+                        All Dates
+                      </button>
+
+                      {availableDates.map(
+                        (date) => (
+
+                          <button
+                            type="button"
+                            key={date}
+                            className={
+                              dateFilter === date
+                                ? "selected"
+                                : ""
+                            }
+                            onClick={() => {
+                              setDateFilter(
+                                date
+                              );
+
+                              setDateDropdownOpen(
+                                false
+                              );
+                            }}
+                          >
+                            {new Date(
+                              date +
+                                "T00:00:00"
+                            ).toLocaleDateString(
+                              "en-US",
+                              {
+                                month:
+                                  "long",
+                                day: "numeric",
+                                year: "numeric",
+                              }
+                            )}
+                          </button>
+
+                        )
+                      )}
+
+                    </div>
+
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* STATUS DROPDOWN */}
+
+              <div className="date-filter-group">
+
+                <label>
+                  Status
+                </label>
+
+                <div className="custom-date-dropdown">
+
+                  <button
+                    type="button"
+                    className="custom-date-select"
+                    onClick={() => {
+                      setStatusDropdownOpen(
+                        (prev) => !prev
+                      );
+
+                      setDateDropdownOpen(
+                        false
+                      );
+                    }}
+                  >
+
+                    <span>
+                      {selectedStatusLabel}
+                    </span>
+
+                    <span className="dropdown-arrow">
+                      {statusDropdownOpen
+                        ? "⌃"
+                        : "⌄"}
+                    </span>
+
+                  </button>
+
+                  {statusDropdownOpen && (
+
+                    <div className="custom-date-options">
+
+                      <button
+                        type="button"
+                        className={
+                          statusFilter === "all"
+                            ? "selected"
+                            : ""
+                        }
+                        onClick={() => {
+                          setStatusFilter("all");
+
+                          setStatusDropdownOpen(
+                            false
+                          );
+                        }}
+                      >
+                        All Status
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          statusFilter ===
+                          "Pending"
+                            ? "selected"
+                            : ""
+                        }
+                        onClick={() => {
+                          setStatusFilter(
+                            "Pending"
+                          );
+
+                          setStatusDropdownOpen(
+                            false
+                          );
+                        }}
+                      >
+                        Pending
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          statusFilter ===
+                          "Processing"
+                            ? "selected"
+                            : ""
+                        }
+                        onClick={() => {
+                          setStatusFilter(
+                            "Processing"
+                          );
+
+                          setStatusDropdownOpen(
+                            false
+                          );
+                        }}
+                      >
+                        Processing
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          statusFilter ===
+                          "Completed"
+                            ? "selected"
+                            : ""
+                        }
+                        onClick={() => {
+                          setStatusFilter(
+                            "Completed"
+                          );
+
+                          setStatusDropdownOpen(
+                            false
+                          );
+                        }}
+                      >
+                        Completed
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          statusFilter ===
+                          "Cancelled"
+                            ? "selected"
+                            : ""
+                        }
+                        onClick={() => {
+                          setStatusFilter(
+                            "Cancelled"
+                          );
+
+                          setStatusDropdownOpen(
+                            false
+                          );
+                        }}
+                      >
+                        Cancelled
+                      </button>
+
+                    </div>
+
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* RESULT COUNT */}
+
+              <div className="date-result-count">
+
+                <span>
+                  Showing
+                </span>
+
+                <strong>
+                  {filteredDateOrders.length}
+                </strong>
+
+                <span>
+                  orders
+                </span>
+
+              </div>
+
+            </section>
+
+            {/* DATE ORDERS */}
+
+            <section className="date-orders-card">
+
+              {filteredDateOrders.length ===
+              0 ? (
+
+                <div className="table-empty">
+
+                  <div className="empty-bread">
+                    📅
                   </div>
 
                   <h3>
-                    No orders yet
+                    No orders found
                   </h3>
 
                   <p>
-                    Customer orders will appear here.
+                    Try selecting another date
+                    or status.
                   </p>
 
                 </div>
 
               ) : (
 
-                <div className="recent-orders">
+                <div className="date-orders-list">
 
-                  {orders
-                    .slice(0, 5)
-                    .map((order) => (
+                  {filteredDateOrders.map(
+                    (order) => (
 
                       <div
-                        className="recent-order-row"
+                        className="date-order-row"
                         key={order.id}
                       >
 
-                        <div className="recent-customer">
+                        <div className="date-order-main">
 
-                          <div className="customer-icon">
-                            {order.customerName
-                              ?.charAt(0)
-                              ?.toUpperCase() ||
-                              "A"}
+                          <div className="date-order-icon">
+                            🧾
                           </div>
 
                           <div>
 
                             <strong>
-                              {order.customerName}
+                              #
+                              {order.id
+                                .slice(-6)
+                                .toUpperCase()}
                             </strong>
 
-                            <p>
-                              {order.orderMethod}
-                            </p>
+                            <span>
+                              {order.customerName ||
+                                "Customer"}
+                            </span>
+
+                            <small>
+                              {formatTime(
+                                order.createdAt
+                              )}
+                            </small>
 
                           </div>
 
                         </div>
 
+                        <div className="date-order-method">
+                          {order.orderMethod ||
+                            "Pickup"}
+                        </div>
 
-                        <div className="recent-order-right">
+                        <div className="date-order-total">
+                          {formatMoney(
+                            order.total
+                          )}
+                        </div>
 
-                          <strong>
-                            ₱
-                            {Number(
-                              order.total || 0
-                            ).toFixed(2)}
-                          </strong>
+                        <span
+                          className={`status-pill ${(
+                            order.status ||
+                            "Pending"
+                          )
+                            .toLowerCase()
+                            .replace(
+                              /\s+/g,
+                              "-"
+                            )}`}
+                        >
+                          {order.status}
+                        </span>
 
-                          <span
-                            className={`status-pill ${
-                              String(
-                                order.status ||
-                                  "Pending"
-                              ).toLowerCase()
-                            }`}
-                          >
-                            {order.status ||
-                              "Pending"}
-                          </span>
+                        <div className="date-order-action">
+
+                          {order.status ===
+                            "Pending" && (
+
+                            <button
+                              className="action-btn processing-btn"
+                              disabled={
+                                updatingOrder ===
+                                order.id
+                              }
+                              onClick={() =>
+                                updateOrderStatus(
+                                  order.id,
+                                  "Processing"
+                                )
+                              }
+                            >
+                              {updatingOrder ===
+                              order.id
+                                ? "..."
+                                : "Process"}
+                            </button>
+
+                          )}
+
+                          {order.status ===
+                            "Processing" && (
+
+                            <button
+                              className="action-btn complete-btn"
+                              disabled={
+                                updatingOrder ===
+                                order.id
+                              }
+                              onClick={() =>
+                                updateOrderStatus(
+                                  order.id,
+                                  "Completed"
+                                )
+                              }
+                            >
+                              {updatingOrder ===
+                              order.id
+                                ? "..."
+                                : "Complete"}
+                            </button>
+
+                          )}
 
                         </div>
 
                       </div>
 
-                    ))}
+                    )
+                  )}
 
                 </div>
 
@@ -1191,412 +2201,117 @@ export default function Admin() {
           </>
         )}
 
+        {/* ===================================
+            PRODUCTS
+        =================================== */}
 
-        {/* =====================================
-            ORDERS
-        ===================================== */}
+        {activeSection === "products" && (
+          <>
 
-        {activeSection === "orders" && (
-
-          <section className="admin-section">
-
-            <div className="section-header">
+            <header className="admin-header">
 
               <div>
 
-                <span className="section-eyebrow">
-                  ORDER MANAGEMENT
+                <span className="header-eyebrow">
+                  AJA BAKES MENU
                 </span>
 
-                <h2>
-                  Customer Orders
-                </h2>
+                <h1>Products</h1>
 
                 <p>
-                  Orders submitted from the website.
+                  Your current bakery products.
                 </p>
 
               </div>
 
-              <button
-                className="admin-action-btn"
-                onClick={fetchOrders}
-              >
-                ↻ Refresh
-              </button>
-
-            </div>
-
-
-            {loadingOrders ? (
-
-              <div className="empty-state">
-
-                <div className="empty-icon">
-                  🥖
-                </div>
-
-                <h3>
-                  Loading orders...
-                </h3>
-
-              </div>
-
-            ) : orders.length === 0 ? (
-
-              <div className="empty-state">
-
-                <div className="empty-icon">
-                  🛒
-                </div>
-
-                <h3>
-                  No orders yet
-                </h3>
-
-                <p>
-                  Customer orders will appear here.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="admin-orders-list">
-
-                {orders.map((order) => (
-
-                  <div
-                    className="admin-order-card"
-                    key={order.id}
-                  >
-
-                    <div className="admin-order-header">
-
-                      <div>
-
-                        <span className="order-label">
-                          CUSTOMER
-                        </span>
-
-                        <h3>
-                          {order.customerName}
-                        </h3>
-
-                        <p>
-                          Order ID: {order.id}
-                        </p>
-
-                      </div>
-
-                      <select
-                        value={
-                          order.status ||
-                          "Pending"
-                        }
-                        onChange={(e) =>
-                          updateStatus(
-                            order.id,
-                            e.target.value
-                          )
-                        }
-                        className="order-status-select"
-                      >
-
-                        {statusOptions.map(
-                          (status) => (
-
-                            <option
-                              key={status}
-                              value={status}
-                            >
-                              {status}
-                            </option>
-
-                          )
-                        )}
-
-                      </select>
-
-                    </div>
-
-
-                    <div className="admin-order-info">
-
-                      <div>
-                        <span>📞</span>
-                        <strong>Contact</strong>
-                        <p>
-                          {order.contactNumber ||
-                            "N/A"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <span>📍</span>
-                        <strong>Method</strong>
-                        <p>
-                          {order.orderMethod ||
-                            "N/A"}
-                        </p>
-                      </div>
-
-                      {order.orderMethod ===
-                        "Delivery" && (
-                        <div>
-                          <span>🏠</span>
-                          <strong>Address</strong>
-                          <p>
-                            {order.address ||
-                              "N/A"}
-                          </p>
-                        </div>
-                      )}
-
-                      <div>
-                        <span>📅</span>
-                        <strong>Schedule</strong>
-                        <p>
-                          {formatDate(
-                            order.preferredDate
-                          )}
-
-                          {order.preferredTime &&
-                            ` • ${order.preferredTime}`}
-                        </p>
-                      </div>
-
-                    </div>
-
-
-                    <div className="admin-order-products">
-
-                      <h4>
-                        Products
-                      </h4>
-
-                      {order.products?.map(
-                        (product) => (
-
-                          <div
-                            className="admin-product-row"
-                            key={product.id}
-                          >
-
-                            <div className="admin-product-left">
-
-                              <img
-                                src={product.image}
-                                alt={product.name}
-                              />
-
-                              <div>
-
-                                <strong>
-                                  {product.name}
-                                </strong>
-
-                                <p>
-                                  {product.price} ×{" "}
-                                  {product.quantity}
-                                </p>
-
-                              </div>
-
-                            </div>
-
-                            <strong>
-                              ₱
-                              {(
-                                getPriceNumber(
-                                  product.price
-                                ) *
-                                product.quantity
-                              ).toFixed(2)}
-                            </strong>
-
-                          </div>
-
-                        )
-                      )}
-
-                    </div>
-
-
-                    {order.notes && (
-
-                      <div className="admin-order-notes">
-
-                        <strong>
-                          📝 Special Instructions
-                        </strong>
-
-                        <p>
-                          {order.notes}
-                        </p>
-
-                      </div>
-
-                    )}
-
-
-                    <div className="admin-order-total">
-
-                      <span>
-                        Total
-                      </span>
-
-                      <strong>
-                        ₱
-                        {Number(
-                          order.total || 0
-                        ).toFixed(2)}
-                      </strong>
-
-                    </div>
+            </header>
+
+            <section className="admin-product-showcase">
+
+              {[
+                {
+                  name: "Classic Cinnamon Roll",
+                  price: "₱55.00",
+                  image:
+                    "/products/cinnamon_regular.png",
+                },
+                {
+                  name: "Cheese Cinnamon Roll",
+                  price: "₱60.00",
+                  image:
+                    "/products/cinnamon_cheese.png",
+                },
+                {
+                  name: "Oreo Cinnamon Roll",
+                  price: "₱60.00",
+                  image:
+                    "/products/cinnamon_oreo.png",
+                },
+                {
+                  name: "Almond Cinnamon Roll",
+                  price: "₱65.00",
+                  image:
+                    "/products/cinnamon_almond.png",
+                },
+                {
+                  name: "Biscoff Cinnamon Roll",
+                  price: "₱70.00",
+                  image:
+                    "/products/cinnamon_biscoff.png",
+                },
+                {
+                  name: "Chocolate Cinnamon Roll",
+                  price: "₱70.00",
+                  image:
+                    "/products/cinnamon_chocolate.png",
+                },
+                {
+                  name: "Garlic Cheese Bun",
+                  price: "₱60.00",
+                  image:
+                    "/products/garlicbun.png",
+                },
+                {
+                  name: "Waffle",
+                  price: "₱10.00",
+                  image:
+                    "/products/waffles.png",
+                },
+              ].map((product) => (
+
+                <div
+                  className="admin-product-card"
+                  key={product.name}
+                >
+
+                  <div className="admin-product-image">
+
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                    />
 
                   </div>
 
-                ))}
+                  <div className="admin-product-info">
 
-              </div>
+                    <h3>
+                      {product.name}
+                    </h3>
 
-            )}
+                    <strong>
+                      {product.price}
+                    </strong>
 
-          </section>
+                  </div>
 
-        )}
+                </div>
 
+              ))}
 
-        {/* =====================================
-            PRODUCTS
-        ===================================== */}
+            </section>
 
-        {activeSection === "products" && (
-
-          <section className="admin-section">
-
-            <div className="section-header">
-
-              <div>
-
-                <span className="section-eyebrow">
-                  BAKERY MENU
-                </span>
-
-                <h2>
-                  Products
-                </h2>
-
-                <p>
-                  Manage your AJA Bakes products.
-                </p>
-
-              </div>
-
-            </div>
-
-
-            <div className="admin-product-showcase">
-
-              <div>
-                <img
-                  src="/products/cinnamon_regular.png"
-                  alt="Classic Cinnamon Roll"
-                />
-
-                <h3>
-                  Cinnamon Rolls
-                </h3>
-
-                <p>
-                  Freshly baked favorites
-                </p>
-              </div>
-
-              <div>
-                <img
-                  src="/products/garlicbun.png"
-                  alt="Garlic Cheese Bun"
-                />
-
-                <h3>
-                  Garlic Cheese Bun
-                </h3>
-
-                <p>
-                  Savory bakery favorite
-                </p>
-              </div>
-
-              <div>
-                <img
-                  src="/products/waffles.png"
-                  alt="Waffles"
-                />
-
-                <h3>
-                  Waffles
-                </h3>
-
-                <p>
-                  Sweet and freshly made
-                </p>
-              </div>
-
-            </div>
-
-          </section>
-
-        )}
-
-
-        {/* =====================================
-            MESSAGES
-        ===================================== */}
-
-        {activeSection === "messages" && (
-
-          <section className="admin-section">
-
-            <div className="section-header">
-
-              <div>
-
-                <span className="section-eyebrow">
-                  CUSTOMER CARE
-                </span>
-
-                <h2>
-                  Messages
-                </h2>
-
-                <p>
-                  Customer messages will appear here.
-                </p>
-
-              </div>
-
-            </div>
-
-            <div className="empty-state">
-
-              <div className="empty-icon">
-                💬
-              </div>
-
-              <h3>
-                No messages yet
-              </h3>
-
-              <p>
-                Customer inquiries will appear here.
-              </p>
-
-            </div>
-
-          </section>
-
+          </>
         )}
 
       </main>
