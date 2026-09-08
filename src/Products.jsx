@@ -45,7 +45,7 @@ const cinnamonRolls = [
 const garlicBuns = [
   {
     name: "Garlic Cheese Bun",
-    price: "₱60.00",
+    price: "₱65.00",
     image: "/products/garlicbun.png",
   },
 ];
