@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import "./Admin.css";
 import {
   collection,
   getDocs,
@@ -12,6 +13,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 
 import { auth, db } from "./firebase";
 import "./Admin.css";
+
+import Feedback from "./Feedback";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -929,6 +932,19 @@ export default function Admin() {
             <span>📅</span>
             Orders by Date
           </button>
+                  <button
+          className={
+            activeSection === "feedback"
+              ? "active"
+              : ""
+          }
+          onClick={() =>
+            goToSection("feedback")
+          }
+        >
+          <span>💬</span>
+          Messages
+        </button>
 
           <button
             className={
@@ -2200,7 +2216,13 @@ export default function Admin() {
 
           </>
         )}
+{/* ===================================
+    MESSAGES / FEEDBACK
+=================================== */}
 
+{activeSection === "feedback" && (
+  <Feedback />
+)}
         {/* ===================================
             PRODUCTS
         =================================== */}
