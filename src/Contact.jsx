@@ -1,13 +1,74 @@
+import { useState } from "react";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+
 import Sidebar from "./sidebar";
+import { db } from "./firebase";
 import "./Contact.css";
 
 export default function Contact() {
+
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
+  });
+
+  const [sending, setSending] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const { name, email, subject, message } = formData;
+
+    if (!name.trim() || !email.trim() || !subject.trim() || !message.trim()) {
+      alert("Please fill in all fields.");
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      await addDoc(collection(db, "messages"), {
+        name: name.trim(),
+        email: email.trim(),
+        subject: subject.trim(),
+        message: message.trim(),
+        status: "Unread",
+        createdAt: serverTimestamp(),
+      });
+
+      alert("Your message has been sent successfully! 🤎");
+
+      setFormData({
+        name: "",
+        email: "",
+        subject: "",
+        message: "",
+      });
+
+    } catch (error) {
+      console.error("Error sending message:", error);
+      alert("Something went wrong while sending your message. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="contact-page">
 
       {/* SIDEBAR */}
       <Sidebar />
-
 
       {/* NAVBAR */}
       <header className="navbar">
@@ -28,7 +89,6 @@ export default function Contact() {
 
       </header>
 
-
       {/* MAIN CONTENT */}
       <main className="contact-content">
 
@@ -48,7 +108,6 @@ export default function Contact() {
           </p>
 
         </section>
-
 
         {/* CONTACT CARDS */}
         <section className="contact-options">
@@ -71,8 +130,12 @@ export default function Contact() {
               orders, or availability? Feel free to
               reach out to us.
             </p>
-            <p><b>
-bsentrep.davism@gmail.com</b></p>
+
+            <p>
+              <b>
+                bsentrep.davism@gmail.com
+              </b>
+            </p>
 
             <a
               href="mailto:bsentrep.davism@gmail.com"
@@ -83,7 +146,6 @@ bsentrep.davism@gmail.com</b></p>
 
           </div>
 
-
           {/* SOCIAL MEDIA */}
           <div className="contact-card">
 
@@ -92,18 +154,20 @@ bsentrep.davism@gmail.com</b></p>
             </div>
 
             <h2>
-              Follow Us 
+              Follow Us
             </h2>
 
             <div className="contact-line"></div>
 
             <p>
-              
               Stay updated with our latest baked
               creations, announcements, and
               special offers.
             </p>
-            <b><p>AJA BAKES</p></b>
+
+            <b>
+              <p>AJA BAKES</p>
+            </b>
 
             <a
               href="https://www.facebook.com/davis.michealla"
@@ -116,7 +180,6 @@ bsentrep.davism@gmail.com</b></p>
 
         </section>
 
-
         {/* CONTACT INFORMATION */}
         <section className="contact-information">
 
@@ -128,7 +191,6 @@ bsentrep.davism@gmail.com</b></p>
             0905 658 2541
           </p>
 
-
           <div className="contact-info-grid">
 
             {/* LOCATION */}
@@ -139,6 +201,7 @@ bsentrep.davism@gmail.com</b></p>
               </div>
 
               <div>
+
                 <h3>
                   Location
                 </h3>
@@ -147,10 +210,10 @@ bsentrep.davism@gmail.com</b></p>
                   Our pickup location will be provided
                   upon order confirmation.
                 </p>
+
               </div>
 
             </div>
-
 
             {/* PHONE */}
             <div className="contact-info-item">
@@ -160,6 +223,7 @@ bsentrep.davism@gmail.com</b></p>
               </div>
 
               <div>
+
                 <h3>
                   Phone
                 </h3>
@@ -168,12 +232,14 @@ bsentrep.davism@gmail.com</b></p>
                   Contact us directly for inquiries
                   and orders.
                 </p>
-                <b><p>0905 658 2541</p></b>
+
+                <b>
+                  <p>0905 658 2541</p>
+                </b>
 
               </div>
 
             </div>
-
 
             {/* EMAIL */}
             <div className="contact-info-item">
@@ -183,6 +249,7 @@ bsentrep.davism@gmail.com</b></p>
               </div>
 
               <div>
+
                 <h3>
                   Email
                 </h3>
@@ -191,10 +258,10 @@ bsentrep.davism@gmail.com</b></p>
                   Send us a message anytime and
                   we'll get back to you.
                 </p>
+
               </div>
 
             </div>
-
 
             {/* HOURS */}
             <div className="contact-info-item">
@@ -204,6 +271,7 @@ bsentrep.davism@gmail.com</b></p>
               </div>
 
               <div>
+
                 <h3>
                   Business Hours
                 </h3>
@@ -212,6 +280,7 @@ bsentrep.davism@gmail.com</b></p>
                   Please message us for our current
                   availability and operating hours.
                 </p>
+
               </div>
 
             </div>
@@ -219,7 +288,6 @@ bsentrep.davism@gmail.com</b></p>
           </div>
 
         </section>
-
 
         {/* MESSAGE FORM */}
         <section className="contact-form-section">
@@ -233,8 +301,10 @@ bsentrep.davism@gmail.com</b></p>
             Fill out the form below.
           </p>
 
-
-          <form className="contact-form">
+          <form
+            className="contact-form"
+            onSubmit={handleSubmit}
+          >
 
             <div className="form-row">
 
@@ -249,10 +319,11 @@ bsentrep.davism@gmail.com</b></p>
                   id="name"
                   name="name"
                   placeholder="Your name"
+                  value={formData.name}
+                  onChange={handleChange}
                 />
 
               </div>
-
 
               <div className="form-group">
 
@@ -265,12 +336,13 @@ bsentrep.davism@gmail.com</b></p>
                   id="email"
                   name="email"
                   placeholder="Your email"
+                  value={formData.email}
+                  onChange={handleChange}
                 />
 
               </div>
 
             </div>
-
 
             <div className="form-group">
 
@@ -283,10 +355,11 @@ bsentrep.davism@gmail.com</b></p>
                 id="subject"
                 name="subject"
                 placeholder="What would you like to ask?"
+                value={formData.subject}
+                onChange={handleChange}
               />
 
             </div>
-
 
             <div className="form-group">
 
@@ -299,22 +372,25 @@ bsentrep.davism@gmail.com</b></p>
                 name="message"
                 rows="6"
                 placeholder="Write your message here..."
+                value={formData.message}
+                onChange={handleChange}
               ></textarea>
 
             </div>
 
-
             <button
-              type="button"
+              type="submit"
               className="send-button"
+              disabled={sending}
             >
-              🤎 Send Message
+              {sending
+                ? "Sending..."
+                : "🤎 Send Message"}
             </button>
 
           </form>
 
         </section>
-
 
         {/* CLOSING */}
         <section className="contact-closing">
@@ -332,7 +408,6 @@ bsentrep.davism@gmail.com</b></p>
         </section>
 
       </main>
-
 
       {/* FOOTER */}
       <footer>
