@@ -1,6 +1,6 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -11,10 +11,15 @@ import {
 import { auth } from "./firebase";
 import "./AdminLogin.css";
 
+// =========================================
+// AUTHORIZED ADMIN EMAILS
+// =========================================
+
 const ADMIN_EMAILS = [
   "bsentrep.davism@gmail.com",
   "darrabaltero@gmail.com",
-  // Add Mikay's email here if you want
+
+  // Add Mikay's email here when available
   // "mikay@email.com",
 ];
 
@@ -40,6 +45,8 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
+      console.log("🔥 ADMIN EMAIL LOGIN START");
+
       const result = await signInWithEmailAndPassword(
         auth,
         email.trim(),
@@ -48,12 +55,19 @@ export default function AdminLogin() {
 
       const user = result.user;
 
-      console.log("Email login:", user.email);
+      console.log("🔥 Admin email login successful");
+      console.log("🔥 Admin email:", user.email);
+      console.log("🔥 Admin UID:", user.uid);
 
-      // Check if email is an authorized admin
+      // =========================================
+      // CHECK ADMIN EMAIL
+      // =========================================
+
       const isAdmin = ADMIN_EMAILS.includes(
         user.email?.toLowerCase()
       );
+
+      console.log("🔥 Is authorized admin:", isAdmin);
 
       if (!isAdmin) {
         await signOut(auth);
@@ -65,10 +79,14 @@ export default function AdminLogin() {
         return;
       }
 
+      console.log("🔥 ADMIN LOGIN SUCCESS!");
+
       navigate("/admin/dashboard");
 
     } catch (error) {
-      console.error("Email login error:", error);
+      console.error("🔥 ADMIN EMAIL LOGIN ERROR:", error);
+      console.error("🔥 ERROR CODE:", error.code);
+      console.error("🔥 ERROR MESSAGE:", error.message);
 
       if (error.code === "auth/invalid-credential") {
         setError(
@@ -92,7 +110,7 @@ export default function AdminLogin() {
         );
       } else {
         setError(
-          "Unable to login. Please try again."
+          `Unable to login: ${error.code || "Unknown error"}`
         );
       }
 
@@ -102,7 +120,7 @@ export default function AdminLogin() {
   };
 
   // =========================================
-  // GOOGLE LOGIN
+  // GOOGLE ADMIN LOGIN
   // =========================================
 
   const handleGoogleLogin = async () => {
@@ -110,27 +128,98 @@ export default function AdminLogin() {
       setError("");
       setGoogleLoading(true);
 
+      console.log("🔥 ADMIN GOOGLE LOGIN START");
+
+      // =========================================
+      // CLEAR EXISTING FIREBASE SESSION
+      // =========================================
+      // This prevents an existing Customer session
+      // from interfering with Admin Google login.
+      //
+      // NOTE:
+      // Admin and Customer currently share the same
+      // Firebase Auth instance. We will separate
+      // these sessions later.
+      // =========================================
+
+      try {
+        await signOut(auth);
+        console.log("🔥 Existing auth session cleared");
+      } catch (signOutError) {
+        console.log(
+          "⚠️ No existing auth session to clear."
+        );
+      }
+
+      // =========================================
+      // GOOGLE PROVIDER
+      // =========================================
+
       const provider = new GoogleAuthProvider();
 
       provider.setCustomParameters({
         prompt: "select_account",
       });
 
+      console.log("🔥 Opening Admin Google popup...");
+
+      // =========================================
+      // GOOGLE POPUP
+      // =========================================
+
       const result = await signInWithPopup(
         auth,
         provider
       );
 
+      console.log(
+        "🔥 Admin Google popup completed!"
+      );
+
+      console.log(
+        "🔥 Google result:",
+        result
+      );
+
       const user = result.user;
 
-      console.log("Google login:", user.email);
+      console.log(
+        "🔥 Admin Google user:",
+        user
+      );
 
-      // Check authorized admin email
+      console.log(
+        "🔥 Admin email:",
+        user.email
+      );
+
+      console.log(
+        "🔥 Admin UID:",
+        user.uid
+      );
+
+      // =========================================
+      // CHECK AUTHORIZED ADMIN
+      // =========================================
+
       const isAdmin = ADMIN_EMAILS.includes(
         user.email?.toLowerCase()
       );
 
+      console.log(
+        "🔥 Is authorized admin:",
+        isAdmin
+      );
+
+      // =========================================
+      // NOT AN ADMIN
+      // =========================================
+
       if (!isAdmin) {
+        console.log(
+          "❌ Google account is NOT authorized."
+        );
+
         await signOut(auth);
 
         setError(
@@ -140,28 +229,101 @@ export default function AdminLogin() {
         return;
       }
 
+      // =========================================
+      // SUCCESS
+      // =========================================
+
+      console.log(
+        "🔥 ADMIN GOOGLE LOGIN SUCCESS!"
+      );
+
+      console.log(
+        "🔥 Navigating to /admin/dashboard..."
+      );
+
       navigate("/admin/dashboard");
 
     } catch (error) {
-      console.error("Google login error:", error);
+      console.error(
+        "🔥 ADMIN GOOGLE LOGIN ERROR:",
+        error
+      );
 
-      if (error.code === "auth/popup-closed-by-user") {
-        setError("Google login was cancelled.");
-      } else if (error.code === "auth/popup-blocked") {
+      console.error(
+        "🔥 ERROR CODE:",
+        error.code
+      );
+
+      console.error(
+        "🔥 ERROR MESSAGE:",
+        error.message
+      );
+
+      // =========================================
+      // ERROR HANDLING
+      // =========================================
+
+      if (
+        error.code ===
+        "auth/popup-closed-by-user"
+      ) {
         setError(
-          "Google login was blocked. Please allow pop-ups."
+          "Google login popup was closed. Please try again."
         );
-      } else if (error.code === "auth/too-many-requests") {
+
+      } else if (
+        error.code ===
+        "auth/popup-blocked"
+      ) {
         setError(
-          "Too many login attempts. Please wait a while and try again."
+          "Google login popup was blocked. Please allow pop-ups."
         );
-      } else if (error.code === "auth/network-request-failed") {
+
+      } else if (
+        error.code ===
+        "auth/cancelled-popup-request"
+      ) {
+        setError(
+          "Another Google login window is already open. Please try again."
+        );
+
+      } else if (
+        error.code ===
+        "auth/unauthorized-domain"
+      ) {
+        setError(
+          "This website is not authorized for Google Login."
+        );
+
+      } else if (
+        error.code ===
+        "auth/network-request-failed"
+      ) {
         setError(
           "Network error. Please check your internet connection."
         );
+
+      } else if (
+        error.code ===
+        "auth/operation-not-allowed"
+      ) {
+        setError(
+          "Google Sign-In is not enabled in Firebase Authentication."
+        );
+
+      } else if (
+        error.code ===
+        "auth/too-many-requests"
+      ) {
+        setError(
+          "Too many login attempts. Please wait a while and try again."
+        );
+
       } else {
         setError(
-          "Unable to login with Google. Please try again."
+          `Google login failed: ${
+            error.code || "Unknown error"
+          }`
         );
       }
 
@@ -170,12 +332,19 @@ export default function AdminLogin() {
     }
   };
 
+  // =========================================
+  // UI
+  // =========================================
+
   return (
     <div className="admin-login-page">
 
       <div className="admin-login-card">
 
-        {/* LOGO */}
+        {/* =====================================
+            LOGO
+        ===================================== */}
+
         <div className="admin-login-logo">
           <img
             src="/logo.png"
@@ -196,7 +365,10 @@ export default function AdminLogin() {
         <form onSubmit={handleEmailLogin}>
 
           <div className="admin-input-group">
-            <label>Email</label>
+
+            <label>
+              Email
+            </label>
 
             <input
               type="email"
@@ -206,12 +378,18 @@ export default function AdminLogin() {
                 setEmail(e.target.value)
               }
               required
-              disabled={loading || googleLoading}
+              disabled={
+                loading || googleLoading
+              }
             />
+
           </div>
 
           <div className="admin-input-group">
-            <label>Password</label>
+
+            <label>
+              Password
+            </label>
 
             <input
               type="password"
@@ -221,16 +399,23 @@ export default function AdminLogin() {
                 setPassword(e.target.value)
               }
               required
-              disabled={loading || googleLoading}
+              disabled={
+                loading || googleLoading
+              }
             />
+
           </div>
 
           <button
             type="submit"
             className="admin-login-btn"
-            disabled={loading || googleLoading}
+            disabled={
+              loading || googleLoading
+            }
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading
+              ? "Logging in..."
+              : "Login"}
           </button>
 
         </form>
@@ -240,7 +425,9 @@ export default function AdminLogin() {
         ===================================== */}
 
         <div className="admin-login-divider">
-          <span>OR</span>
+          <span>
+            OR
+          </span>
         </div>
 
         {/* =====================================
@@ -251,8 +438,11 @@ export default function AdminLogin() {
           type="button"
           className="admin-google-btn"
           onClick={handleGoogleLogin}
-          disabled={loading || googleLoading}
+          disabled={
+            loading || googleLoading
+          }
         >
+
           <span className="admin-google-icon">
             G
           </span>
@@ -262,14 +452,22 @@ export default function AdminLogin() {
               ? "Signing in..."
               : "Continue with Google"}
           </span>
+
         </button>
 
-        {/* ERROR */}
+        {/* =====================================
+            ERROR MESSAGE
+        ===================================== */}
+
         {error && (
           <p className="admin-login-error">
             {error}
           </p>
         )}
+
+        {/* =====================================
+            ADMIN NOTE
+        ===================================== */}
 
         <p className="admin-login-note">
           Authorized administrators only.
