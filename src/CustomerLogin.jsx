@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+} from "firebase/auth";
+
 import {
   doc,
   getDoc,
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
+
 import { useNavigate } from "react-router-dom";
 
 import { auth, db } from "./firebase";
@@ -16,6 +21,10 @@ export default function CustomerLogin() {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  /* =========================================
+     GOOGLE LOGIN
+  ========================================= */
 
   const handleGoogleLogin = async () => {
     try {
@@ -28,23 +37,83 @@ export default function CustomerLogin() {
         prompt: "select_account",
       });
 
-      // GOOGLE SIGN-IN
-      const result = await signInWithPopup(auth, provider);
+      console.log("🔥 STEP 1: Starting Google popup...");
+
+      /* =====================================
+         GOOGLE SIGN-IN
+      ===================================== */
+
+      const result = await signInWithPopup(
+        auth,
+        provider
+      );
+
+      console.log(
+        "🔥 STEP 2: Google popup completed!"
+      );
+
+      console.log(
+        "🔥 Google result:",
+        result
+      );
 
       const user = result.user;
 
-      console.log("Google login successful:", user);
+      console.log(
+        "🔥 STEP 3: Google user:",
+        user
+      );
 
-      // CUSTOMER DOCUMENT
-      const customerRef = doc(db, "customers", user.uid);
+      console.log(
+        "🔥 Email:",
+        user.email
+      );
 
-      const customerSnapshot = await getDoc(customerRef);
+      console.log(
+        "🔥 UID:",
+        user.uid
+      );
 
-      // =========================================
-      // FIRST TIME LOGIN
-      // =========================================
+      /* =====================================
+         CUSTOMER REFERENCE
+      ===================================== */
+
+      console.log(
+        "🔥 STEP 4: Creating customer reference..."
+      );
+
+      const customerRef = doc(
+        db,
+        "customers",
+        user.uid
+      );
+
+      console.log(
+        "🔥 STEP 5: Getting customer document..."
+      );
+
+      const customerSnapshot =
+        await getDoc(customerRef);
+
+      console.log(
+        "🔥 STEP 6: Customer document received."
+      );
+
+      console.log(
+        "🔥 Customer exists:",
+        customerSnapshot.exists()
+      );
+
+      /* =====================================
+         FIRST TIME LOGIN
+      ===================================== */
 
       if (!customerSnapshot.exists()) {
+
+        console.log(
+          "🔥 STEP 7: Creating new customer profile..."
+        );
+
         await setDoc(customerRef, {
           uid: user.uid,
           name: user.displayName || "",
@@ -55,14 +124,21 @@ export default function CustomerLogin() {
           updatedAt: serverTimestamp(),
         });
 
-        console.log("New customer profile created.");
+        console.log(
+          "🔥 STEP 8: New customer profile created!"
+        );
       }
 
-      // =========================================
-      // EXISTING CUSTOMER
-      // =========================================
+      /* =====================================
+         EXISTING CUSTOMER
+      ===================================== */
 
       else {
+
+        console.log(
+          "🔥 STEP 7: Updating existing customer..."
+        );
+
         await setDoc(
           customerRef,
           {
@@ -76,40 +152,103 @@ export default function CustomerLogin() {
           }
         );
 
-        console.log("Customer profile updated.");
+        console.log(
+          "🔥 STEP 8: Customer profile updated!"
+        );
       }
 
-      setMessage("Login successful!");
+      /* =====================================
+         LOGIN SUCCESS
+      ===================================== */
 
-      // Redirect after login
+      console.log(
+        "🔥 STEP 9: LOGIN SUCCESS!"
+      );
+
+      setMessage(
+        "Login successful! Redirecting..."
+      );
+
+      console.log(
+        "🔥 STEP 10: Navigating to /account..."
+      );
+
       setTimeout(() => {
         navigate("/account");
       }, 500);
 
     } catch (error) {
-      console.error("Google login error:", error);
 
-      if (error.code === "auth/popup-closed-by-user") {
-        setMessage("Google login was cancelled.");
+      console.error(
+        "🔥 GOOGLE LOGIN ERROR:",
+        error
+      );
+
+      console.error(
+        "🔥 ERROR CODE:",
+        error.code
+      );
+
+      console.error(
+        "🔥 ERROR MESSAGE:",
+        error.message
+      );
+
+      /* =====================================
+         ERROR HANDLING
+      ===================================== */
+
+      if (
+        error.code ===
+        "auth/popup-closed-by-user"
+      ) {
+        setMessage(
+          "Google login was cancelled."
+        );
       }
 
-      else if (error.code === "auth/popup-blocked") {
+      else if (
+        error.code ===
+        "auth/popup-blocked"
+      ) {
         setMessage(
           "Google login was blocked. Please allow pop-ups in your browser."
         );
       }
 
       else if (
-        error.code === "auth/account-exists-with-different-credential"
+        error.code ===
+        "auth/unauthorized-domain"
+      ) {
+        setMessage(
+          "This website is not authorized for Google Login."
+        );
+      }
+
+      else if (
+        error.code ===
+        "auth/account-exists-with-different-credential"
       ) {
         setMessage(
           "An account already exists using a different sign-in method."
         );
       }
 
-      else if (error.code === "auth/network-request-failed") {
+      else if (
+        error.code ===
+        "auth/network-request-failed"
+      ) {
         setMessage(
           "Network error. Please check your internet connection."
+        );
+      }
+
+      else if (
+        error.code ===
+        "permission-denied"
+      ) {
+        setMessage(
+          "Google login worked, but Firestore permission was denied."
         );
       }
 
@@ -124,22 +263,26 @@ export default function CustomerLogin() {
     }
   };
 
-  // =========================================
-  // SIGN UP
-  // =========================================
+  /* =========================================
+     SIGN UP
+  ========================================= */
 
   const handleSignUp = () => {
     navigate("/register");
   };
+
+  /* =========================================
+     PAGE
+  ========================================= */
 
   return (
     <div className="customer-login-page">
 
       <div className="customer-login-card">
 
-        {/* =========================================
+        {/* =====================================
             LOGO
-        ========================================= */}
+        ===================================== */}
 
         <img
           src="/logo.png"
@@ -147,9 +290,9 @@ export default function CustomerLogin() {
           className="customer-login-logo"
         />
 
-        {/* =========================================
+        {/* =====================================
             TITLE
-        ========================================= */}
+        ===================================== */}
 
         <h1>AJA BAKES</h1>
 
@@ -157,9 +300,9 @@ export default function CustomerLogin() {
           Welcome! Please login to continue.
         </p>
 
-        {/* =========================================
-            GOOGLE LOGIN
-        ========================================= */}
+        {/* =====================================
+            GOOGLE LOGIN BUTTON
+        ===================================== */}
 
         <button
           type="button"
@@ -167,6 +310,7 @@ export default function CustomerLogin() {
           onClick={handleGoogleLogin}
           disabled={loading}
         >
+
           <span className="google-icon">
             G
           </span>
@@ -176,11 +320,12 @@ export default function CustomerLogin() {
               ? "Signing in..."
               : "Continue with Google"}
           </span>
+
         </button>
 
-        {/* =========================================
+        {/* =====================================
             MESSAGE
-        ========================================= */}
+        ===================================== */}
 
         {message && (
           <p className="login-message">
@@ -188,9 +333,9 @@ export default function CustomerLogin() {
           </p>
         )}
 
-        {/* =========================================
+        {/* =====================================
             SIGN UP
-        ========================================= */}
+        ===================================== */}
 
         <div className="account-switch">
 
@@ -201,6 +346,7 @@ export default function CustomerLogin() {
           <button
             type="button"
             onClick={handleSignUp}
+            disabled={loading}
           >
             Sign up
           </button>
