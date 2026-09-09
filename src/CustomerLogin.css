@@ -1,0 +1,293 @@
+/* =========================================
+   CUSTOMER LOGIN PAGE
+========================================= */
+
+.customer-login-page {
+  min-height: 100vh;
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 30px 20px;
+
+  background: #f8eee5;
+
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+
+/* =========================================
+   LOGIN CARD
+========================================= */
+
+.customer-login-card {
+  width: 100%;
+  max-width: 430px;
+
+  padding: 45px 35px;
+
+  background: #fffaf5;
+
+  border: 2px solid #d6c39d;
+
+  border-radius: 22px;
+
+  box-shadow:
+    0 10px 30px rgba(70, 45, 30, 0.12);
+
+  text-align: center;
+}
+
+
+/* =========================================
+   LOGO
+========================================= */
+
+.customer-login-logo {
+  width: 110px;
+  height: 110px;
+
+  object-fit: contain;
+
+  display: block;
+
+  margin: 0 auto 15px;
+}
+
+
+/* =========================================
+   TITLE
+========================================= */
+
+.customer-login-card h1 {
+  margin: 0 0 8px;
+
+  color: #4b3426;
+
+  font-size: 34px;
+
+  letter-spacing: 3px;
+}
+
+
+/* =========================================
+   SUBTITLE
+========================================= */
+
+.login-subtitle {
+  margin: 0 0 30px;
+
+  color: #80634c;
+
+  font-size: 15px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================
+   GOOGLE LOGIN BUTTON
+========================================= */
+
+.google-login-btn {
+  width: 100%;
+
+  min-height: 52px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 12px;
+
+  background: #ffffff;
+
+  color: #4b3426;
+
+  border: 1px solid #cfc3ba;
+
+  border-radius: 8px;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 15px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+
+.google-login-btn:hover {
+  background: #f7f3ef;
+
+  border-color: #a9907c;
+
+  box-shadow:
+    0 4px 10px rgba(70, 45, 30, 0.08);
+}
+
+
+.google-login-btn:active {
+  transform: translateY(1px);
+}
+
+
+.google-login-btn:disabled {
+  opacity: 0.6;
+
+  cursor: not-allowed;
+
+  box-shadow: none;
+}
+
+
+/* =========================================
+   GOOGLE ICON
+========================================= */
+
+.google-icon {
+  width: 24px;
+  height: 24px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  color: #4285f4;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 20px;
+
+  font-weight: bold;
+}
+
+
+/* =========================================
+   LOGIN MESSAGE
+========================================= */
+
+.login-message {
+  margin: 18px 0 0;
+
+  color: #6b4a35;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 14px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================
+   ACCOUNT SWITCH
+========================================= */
+
+.account-switch {
+  margin-top: 28px;
+
+  padding-top: 20px;
+
+  border-top: 1px solid #e2d5ca;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 6px;
+
+  color: #80634c;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 14px;
+}
+
+
+.account-switch button {
+  padding: 0;
+
+  background: none;
+
+  border: none;
+
+  color: #5b4030;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+
+.account-switch button:hover {
+  text-decoration: underline;
+}
+
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 500px) {
+
+  .customer-login-page {
+    padding: 20px 15px;
+  }
+
+
+  .customer-login-card {
+    padding: 35px 22px;
+
+    border-radius: 18px;
+  }
+
+
+  .customer-login-logo {
+    width: 90px;
+    height: 90px;
+  }
+
+
+  .customer-login-card h1 {
+    font-size: 28px;
+
+    letter-spacing: 2px;
+  }
+
+
+  .login-subtitle {
+    font-size: 14px;
+  }
+
+
+  .google-login-btn {
+    min-height: 50px;
+
+    font-size: 14px;
+  }
+
+
+  .account-switch {
+    font-size: 13px;
+  }
+
+
+  .account-switch button {
+    font-size: 13px;
+  }
+}

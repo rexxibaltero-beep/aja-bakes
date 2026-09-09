@@ -140,14 +140,25 @@ img {
 
   z-index: 1900;
 
+  /* Keep scrolling */
   overflow-y: auto;
   overflow-x: hidden;
+
+  /* Hide scrollbar - Chrome, Edge, Safari */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Hide scrollbar - Chrome, Edge, Safari */
+.sidebar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .sidebar.open {
   left: 0;
 }
-
 
 /* =========================================
    SIDEBAR CLOSE BUTTON

@@ -37,7 +37,6 @@ export default function Sidebar() {
 
       <aside className={`sidebar ${isOpen ? "open" : ""}`}>
 
-
         {/* CLOSE BUTTON */}
 
         <button
@@ -78,7 +77,6 @@ export default function Sidebar() {
 
         <nav className="sidebar-menu">
 
-
           {/* HOME */}
 
           <Link
@@ -103,17 +101,19 @@ export default function Sidebar() {
           </Link>
 
 
-          {/* ORDER NOW */}
+          {/* ORDERS */}
 
           <Link
-          to="/orders"
-          className="sidebar-btn"
-          onClick={() => setIsOpen(false)}
-        >
-          <span>🛒</span>
-          <span>Orders</span>
-        </Link>
+            to="/orders"
+            className="sidebar-btn"
+            onClick={() => setIsOpen(false)}
+          >
+            <span>🛒</span>
+            <span>Orders</span>
+          </Link>
 
+
+          
 
           {/* ABOUT AJA BAKES */}
 
@@ -124,19 +124,19 @@ export default function Sidebar() {
           >
             <span>🤎</span>
             <span>About AJA Bakes</span>
-          </Link> 
+          </Link>
 
 
           {/* PICKUP & DELIVERY */}
 
           <Link
-          to="/pickup-delivery"
-          className="sidebar-btn"
-          onClick={() => setIsOpen(false)}
-        >
-          <span>📍</span>
-          <span>Pickup & Delivery</span>
-        </Link>
+            to="/pickup-delivery"
+            className="sidebar-btn"
+            onClick={() => setIsOpen(false)}
+          >
+            <span>📍</span>
+            <span>Pickup & Delivery</span>
+          </Link>
 
 
           {/* CONTACT US */}
@@ -150,6 +150,17 @@ export default function Sidebar() {
             <span>Contact Us</span>
           </Link>
 
+          {/* MY ACCOUNT */}
+
+          <Link
+            to="/account"
+            className="sidebar-btn"
+            onClick={() => setIsOpen(false)}
+          >
+            <span>👤</span>
+            <span>My Account</span>
+          </Link>
+
 
         </nav>
 
@@ -157,3 +168,4 @@ export default function Sidebar() {
     </>
   );
 }
+

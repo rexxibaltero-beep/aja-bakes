@@ -1,0 +1,318 @@
+/* =========================================
+   CUSTOMER ACCOUNT PAGE
+========================================= */
+
+.customer-account-page {
+  min-height: 100vh;
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 30px 20px;
+
+  background: #f8eee5;
+
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+
+/* =========================================
+   ACCOUNT CARD
+========================================= */
+
+.customer-account-card {
+  width: 100%;
+  max-width: 460px;
+
+  padding: 45px 35px;
+
+  background: #fffaf5;
+
+  border: 2px solid #d6c39d;
+
+  border-radius: 22px;
+
+  box-shadow:
+    0 10px 30px rgba(70, 45, 30, 0.12);
+
+  text-align: center;
+}
+
+
+/* =========================================
+   PROFILE PHOTO
+========================================= */
+
+.account-photo-wrapper {
+  width: 110px;
+  height: 110px;
+
+  margin: 0 auto 20px;
+}
+
+
+.account-photo {
+  width: 110px;
+  height: 110px;
+
+  object-fit: cover;
+
+  border-radius: 50%;
+
+  border: 3px solid #d6c39d;
+}
+
+
+.account-photo-placeholder {
+  width: 110px;
+  height: 110px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #5b4030;
+
+  color: white;
+
+  font-family: Georgia, "Times New Roman", serif;
+
+  font-size: 42px;
+
+  border: 3px solid #d6c39d;
+}
+
+
+/* =========================================
+   TITLE
+========================================= */
+
+.customer-account-card h1 {
+  margin: 0 0 8px;
+
+  color: #4b3426;
+
+  font-size: 30px;
+
+  letter-spacing: 2px;
+}
+
+
+.account-welcome {
+  margin: 0 0 28px;
+
+  color: #80634c;
+
+  font-size: 15px;
+}
+
+
+/* =========================================
+   CUSTOMER INFORMATION
+========================================= */
+
+.account-info {
+  width: 100%;
+
+  margin-bottom: 25px;
+
+  text-align: left;
+}
+
+
+.account-info-item {
+  padding: 15px 0;
+
+  border-bottom: 1px solid #e2d5ca;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+
+.account-label {
+  color: #a18b78;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+}
+
+
+.account-value {
+  color: #4b3426;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 15px;
+
+  word-break: break-word;
+}
+
+
+/* =========================================
+   MY ORDERS
+========================================= */
+
+.account-orders-btn {
+  width: 100%;
+
+  height: 50px;
+
+  margin-top: 5px;
+
+  background: #5b4030;
+
+  color: white;
+
+  border: none;
+
+  border-radius: 8px;
+
+  font-family: Georgia, "Times New Roman", serif;
+
+  font-size: 15px;
+
+  font-weight: bold;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+
+.account-orders-btn:hover {
+  background: #806047;
+}
+
+
+/* =========================================
+   BACK HOME
+========================================= */
+
+.account-home-btn {
+  width: 100%;
+
+  height: 48px;
+
+  margin-top: 12px;
+
+  background: white;
+
+  color: #5b4030;
+
+  border: 1px solid #cdbbaa;
+
+  border-radius: 8px;
+
+  font-family: Georgia, "Times New Roman", serif;
+
+  font-size: 14px;
+
+  font-weight: bold;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+
+.account-home-btn:hover {
+  background: #f7f3ef;
+}
+
+
+/* =========================================
+   LOGOUT
+========================================= */
+
+.account-logout-btn {
+  width: 100%;
+
+  margin-top: 18px;
+
+  padding: 8px;
+
+  background: transparent;
+
+  color: #80634c;
+
+  border: none;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 13px;
+
+  cursor: pointer;
+}
+
+
+.account-logout-btn:hover {
+  color: #4b3426;
+
+  text-decoration: underline;
+}
+
+
+/* =========================================
+   LOADING
+========================================= */
+
+.account-loading {
+  color: #5b4030;
+
+  font-family: Georgia, "Times New Roman", serif;
+
+  font-size: 18px;
+}
+
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 500px) {
+
+  .customer-account-page {
+    padding: 20px 15px;
+  }
+
+  .customer-account-card {
+    padding: 35px 22px;
+
+    border-radius: 18px;
+  }
+
+  .account-photo-wrapper,
+  .account-photo,
+  .account-photo-placeholder {
+    width: 90px;
+    height: 90px;
+  }
+
+  .account-photo-placeholder {
+    font-size: 34px;
+  }
+
+  .customer-account-card h1 {
+    font-size: 25px;
+  }
+
+  .account-welcome {
+    font-size: 14px;
+  }
+}
